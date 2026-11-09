@@ -4,6 +4,7 @@ import androidx.compose.runtime.*
 import kotlin.math.abs
 
 internal const val RESUME_COUNTDOWN_MS = 3000L
+internal const val RESUME_LIFT_MS = 250L
 
 data class BeatNote(val seat: Int, val time: Long, var judged: Boolean = false)
 class RhythmGame(private val log: (String) -> Unit = {}) {
@@ -44,8 +45,8 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
 
     fun resume(now: Long) {
         if (screen != "play" || running || resumeRemainingMs > 0) return
-        resumeAt = now + RESUME_COUNTDOWN_MS
-        resumeRemainingMs = RESUME_COUNTDOWN_MS
+        resumeRemainingMs = RESUME_LIFT_MS + RESUME_COUNTDOWN_MS
+        resumeAt = now + resumeRemainingMs
     }
 
     fun tick(now: Long, beat: () -> Unit) {

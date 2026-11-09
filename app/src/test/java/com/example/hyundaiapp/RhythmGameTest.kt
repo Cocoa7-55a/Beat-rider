@@ -23,20 +23,22 @@ class RhythmGameTest {
         game.pause()
         game.resume(10000)
 
-        game.tick(12999) { fail("Countdown must not play a beat") }
-        game.hit(0, 12999, vehicle = true)
+        game.tick(10250) { fail("Resume preparation must not play a beat") }
+        assertEquals(3000L, game.resumeRemainingMs)
+        game.tick(13249) { fail("Countdown must not play a beat") }
+        game.hit(0, 13249, vehicle = true)
         assertEquals(0, game.hits)
         assertEquals(1900L, game.elapsed)
         assertFalse(game.running)
         assertEquals(1L, game.resumeRemainingMs)
 
-        game.tick(13000) {}
+        game.tick(13250) {}
         assertTrue(game.running)
         assertEquals(0L, game.resumeRemainingMs)
         assertEquals(1900L, game.elapsed)
-        game.hit(0, 12999, vehicle = true)
+        game.hit(0, 13249, vehicle = true)
         assertEquals(0, game.hits)
-        game.hit(0, 13100)
+        game.hit(0, 13350)
         assertEquals(1, game.hits)
     }
 

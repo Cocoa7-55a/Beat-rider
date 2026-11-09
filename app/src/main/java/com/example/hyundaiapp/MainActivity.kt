@@ -164,9 +164,9 @@ class MainActivity : ComponentActivity() {
             Text("가족 점수 ${game.score}    ${game.combo} COMBO", fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Text("${(game.duration - game.elapsed).coerceAtLeast(0) / 1000}초", fontSize = 24.sp)
         }
-        val countingDown = game.resumeRemainingMs > 0
+        val preparingResume = game.resumeRemainingMs > 0
         val message = when {
-            countingDown -> "곧 연주를 이어갑니다"
+            preparingResume -> "곧 연주를 이어갑니다"
             game.running -> game.feedback
             else -> "일시정지 · 주차 확인 후 이어가기를 눌러 주세요"
         }
@@ -176,24 +176,26 @@ class MainActivity : ComponentActivity() {
             Canvas(Modifier.fillMaxSize().clipToBounds()) {
                 val width = size.width / seats.size
                 val line = size.height * .82f
-                val countdownElapsed = RESUME_COUNTDOWN_MS - game.resumeRemainingMs
-                // Lift the notes, then settle them back at the frozen song position.
-                val liftProgress = when {
-                    countdownElapsed < 450 -> countdownElapsed / 450f
-                    else -> game.resumeRemainingMs / (RESUME_COUNTDOWN_MS - 450).toFloat()
+                val remainingMs = game.resumeRemainingMs
+                val rewindMs = if (remainingMs > RESUME_COUNTDOWN_MS) {
+                    val liftProgress = 1f - (remainingMs - RESUME_COUNTDOWN_MS) / RESUME_LIFT_MS.toFloat()
+                    RESUME_COUNTDOWN_MS * FastOutSlowInEasing.transform(liftProgress)
+                } else {
+                    remainingMs.toFloat()
                 }
-                val lift = line * .42f * FastOutSlowInEasing.transform(liftProgress)
+                // Advance the visual clock at the same rate as gameplay while scoring stays paused.
+                val visualElapsed = game.elapsed - rewindMs
                 val travelMs = 2000f / game.noteSpeed
                 seats.forEachIndexed { lane, seat ->
                     drawLine(seatColors[seat].copy(alpha=.15f), Offset(width * lane, 0f), Offset(width * lane, size.height), 2f)
                     drawLine(seatColors[seat], Offset(width * lane + 14, line), Offset(width * (lane + 1) - 14, line), 5f)
                     game.notes.filter { it.seat == seat && !it.judged }.forEach { note ->
-                        val y = line - (note.time - game.elapsed).toFloat() / travelMs * line - lift
+                        val y = line - (note.time - visualElapsed) / travelMs * line
                         if (y in -24f..size.height) drawRoundRect(seatColors[seat], Offset(width * lane + width * .2f, y - 10), Size(width * .6f, 20f), CornerRadius(10f))
                     }
                 }
             }
-            if (countingDown) {
+            if (game.resumeRemainingMs in 1..RESUME_COUNTDOWN_MS) {
                 Text(
                     text = ((game.resumeRemainingMs + 999) / 1000).toString(),
                     modifier = Modifier.align(Alignment.Center)
@@ -215,7 +217,7 @@ class MainActivity : ComponentActivity() {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedButton(onClick={ game.pause(); game.screen="home" }) { Text("로비로") }
             if (game.running) OutlinedButton(onClick={ game.pause() }) { Text("잠깐 쉬기") }
-            else Button(onClick={ if(inputs.parked) game.resume(SystemClock.elapsedRealtime()) }, enabled=inputs.parked && !countingDown) { Text(if (countingDown) "재개 준비 중" else "이어가기") }
+            else Button(onClick={ if(inputs.parked) game.resume(SystemClock.elapsedRealtime()) }, enabled=inputs.parked && !preparingResume) { Text(if (preparingResume) "재개 준비 중" else "이어가기") }
         }
     }
     @Composable private fun Result() {
