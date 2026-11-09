@@ -30,9 +30,9 @@ import androidx.compose.ui.unit.sp
 import java.util.Locale
 import kotlinx.coroutines.delay
 
-private val seatNames = listOf("운전석", "조수석", "뒷좌석 왼쪽", "뒷좌석 오른쪽")
-private val seatIcons = listOf("★", "◆", "●", "▲")
-private val seatColors = listOf(Color(0xFFFFC857), Color(0xFF72DDF7), Color(0xFFB79CFF), Color(0xFFFF8DA1))
+internal val seatNames = listOf("운전석", "조수석", "뒷좌석 왼쪽", "뒷좌석 오른쪽")
+internal val seatIcons = listOf("★", "◆", "●", "▲")
+internal val seatColors = listOf(Color(0xFFFFC857), Color(0xFF72DDF7), Color(0xFFB79CFF), Color(0xFFFF8DA1))
 private val navy = Color(0xFF101629)
 
 class MainActivity : ComponentActivity() {
@@ -98,40 +98,88 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() { inputs.close(); audioManager.abandonAudioFocusRequest(focusRequest); tone?.release(); super.onDestroy() }
 
     @Composable private fun Home() {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-            Text("오늘의 가족 밴드를 모아 주세요", fontSize = 24.sp)
-            Text("1–4명 · 120 BPM · 19초 · 각자의 노트를 맞춰 가족 콤보를 이어가요")
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                repeat(4) { i ->
-                    Card(Modifier.weight(1f)) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(seatIcons[i], color = seatColors[i], fontSize = 32.sp)
-                            Text(seatNames[i], fontWeight = FontWeight.Bold)
-                            Text(if (inputs.experimental && inputs.verified[i]) "독서등 + 터치" else "터치로 참여", fontSize = 12.sp)
-                            Switch(game.active[i], { if (!game.active[i] || game.active.count { it } > 1) game.active[i] = it })
-                        }
+        Box(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            BoxWithConstraints(Modifier.widthIn(max = 1040.dp).fillMaxWidth()) {
+                if (maxWidth >= 760.dp) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(40.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        LobbySeatSelection(Modifier.weight(1f))
+                        LobbySettings(Modifier.weight(1f))
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                        LobbySeatSelection(Modifier.fillMaxWidth())
+                        LobbySettings(Modifier.fillMaxWidth())
                     }
                 }
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Switch(game.practice, { game.practice = it })
-                Text("연습 모드 · 판정 시간을 넉넉하게")
+        }
+    }
+
+    @Composable private fun LobbySeatSelection(modifier: Modifier) {
+        Column(
+            modifier,
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text("어디에 앉아 있나요?", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text("도면에서 함께 연주할 자리를 눌러 주세요.", color = Color(0xFFACB8D4))
+            VehicleSeatMap(
+                active = game.active,
+                hasLightInput = { inputs.experimental && inputs.verified[it] },
+                onSeatSelected = { seat, selected ->
+                    if (selected || game.active.count { it } > 1) game.active[seat] = selected
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+
+    @Composable private fun LobbySettings(modifier: Modifier) {
+        Card(modifier, colors = CardDefaults.cardColors(containerColor = Color(0xFF1D2640))) {
+            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("연주 설정", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    Text("1–4명 · 120 BPM · 19초", color = Color(0xFFACB8D4))
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Switch(game.practice, { game.practice = it })
+                    Text("연습 모드 · 판정 시간을 넉넉하게")
+                }
+                Column {
+                    Text("노트 낙하 속도 · " + String.format(Locale.ROOT, "%.2f×", game.noteSpeed))
+                    Slider(
+                        value = game.noteSpeed,
+                        onValueChange = { game.noteSpeed = it },
+                        valueRange = 0.5f..2f,
+                        steps = 5
+                    )
+                    Text("낮은 배속에서는 노트가 화면에 더 일찍 나타나요.", color = Color(0xFFACB8D4))
+                }
+                Button(
+                    onClick = { if (inputs.parked) game.start(SystemClock.elapsedRealtime()) },
+                    enabled = inputs.parked,
+                    modifier = Modifier.fillMaxWidth().height(56.dp)
+                ) {
+                    Text("함께 시작", fontSize = 20.sp)
+                }
+                OutlinedButton(
+                    onClick = { inputs.probe(); game.screen = "test" },
+                    modifier = Modifier.fillMaxWidth().height(52.dp)
+                ) {
+                    Text("독서등 입력 테스트")
+                }
+                Text("준비 4박 뒤, 노트가 판정선에 닿으면 내 자리 버튼을 누르세요.", color = Color(0xFFACB8D4))
             }
-            Column {
-                Text("노트 낙하 속도 · " + String.format(Locale.ROOT, "%.2f×", game.noteSpeed))
-                Slider(
-                    value = game.noteSpeed,
-                    onValueChange = { game.noteSpeed = it },
-                    valueRange = 0.5f..2f,
-                    steps = 5
-                )
-                Text("낮은 배속에서는 노트가 화면에 더 일찍 나타나요.", color = Color(0xFFACB8D4))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Button(onClick = { if (inputs.parked) game.start(SystemClock.elapsedRealtime()) }, enabled = inputs.parked, modifier = Modifier.height(60.dp)) { Text("함께 시작", fontSize = 20.sp) }
-                OutlinedButton(onClick = { inputs.probe(); game.screen = "test" }, modifier = Modifier.height(60.dp)) { Text("독서등 입력 테스트") }
-            }
-            Text("음악은 4박자 준비 후 시작해요. 노트가 아래 판정선에 닿으면 내 자리 버튼을 누르세요.", color = Color(0xFFACB8D4))
         }
     }
 

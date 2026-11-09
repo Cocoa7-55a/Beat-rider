@@ -16,7 +16,7 @@ FAMILY BEAT는 Pleos Connect 차량 화면에서 1~4명이 각자 맡은 레인�
 
 ```mermaid
 flowchart TD
-    Open["앱 실행"] --> Home["로비 · 좌석 선택, 연습 모드, 노트 속도"]
+    Open["앱 실행"] --> Home["로비 · 차량 도면에서 좌석 선택과 연주 설정"]
     Home -->|"독서등 입력 테스트"| Test["독서등 테스트 · 상태 확인과 보정"]
     Test -->|"돌아가기"| Home
     Home -->|"P 및 주행 제한 해제 확인 → 함께 시작"| Play["플레이 · 준비 4박 후 연주"]
@@ -39,11 +39,11 @@ flowchart TD
 
 ### 로비
 
-- 좌석 카드 네 개에 고유 색·아이콘·이름·입력 모드·참가 스위치를 표시합니다. 앱을 열면 네 자리 모두 참가 상태입니다. 스위치로 1~4명을 구성할 수 있고, 마지막 한 자리는 해제할 수 없습니다.
-- 참가 여부와 독서등 연결 여부는 별개입니다. 실험 모드가 켜져 있고 자리 확인이 끝난 경우 **독서등 + 터치**, 그 외에는 **터치로 참여**를 표시합니다.
+- 차량을 위에서 본 도면에 네 좌석 버튼을 실제 좌우·앞뒤 순서로 배치합니다. 차량 앞쪽은 위이며 운전석은 왼쪽 앞입니다. 버튼에 좌석 색·아이콘·이름과 참가 또는 입력 상태를 표시합니다. 기본은 네 자리 참가이며 마지막 한 자리는 해제할 수 없습니다.
+- 참가 여부와 독서등 연결 여부는 별개입니다. 실험 모드가 켜져 있고 자리 확인이 끝난 경우 **독서등 + 터치**, 참가 중인 나머지 자리에는 **터치로 참여**를 표시합니다.
 - **연습 모드**는 같은 곡의 판정 시간을 기본 ±220ms에서 ±350ms로 넓힙니다. **함께 시작**과 **독서등 입력 테스트**는 각각 플레이와 테스트 화면을 엽니다.
 
-| 좌석 카드 | 색 | SDK 영역 | Virtual Console 영역 |
+| 좌석 버튼 | 색 | SDK 영역 | Virtual Console 영역 |
 |---|---|---|---|
 | ★ 운전석 | 노랑 | `ROW_1_LEFT` | `front_left` |
 | ◆ 조수석 | 하늘 | `ROW_1_RIGHT` | `front_right` |
@@ -52,7 +52,7 @@ flowchart TD
 
 **노트 낙하 속도** 슬라이더로 0.50~2.00배를 0.25배 단위로 선택할 수 있습니다. 기본은 1.00배이며, 낮은 배속에서는 노트가 더 일찍 나타납니다. 곡의 BPM과 판정 시각은 그대로 유지됩니다.
 
-운전석·조수석 이름은 좌핸들 기준입니다. 참가 스위치가 켜진 자리만 레인에 배치되며, 32개 노트를 참가 좌석 순서대로 번갈아 배정합니다.
+운전석·조수석 이름은 좌핸들 기준입니다. 도면에서 선택한 자리만 레인에 배치되며, 32개 노트를 참가 좌석 순서대로 번갈아 배정합니다.
 
 ### 플레이
 
@@ -118,6 +118,7 @@ flowchart LR
 | 파일 | 담당 |
 |---|---|
 | [MainActivity.kt](../app/src/main/java/com/example/hyundaiapp/MainActivity.kt) | Compose 화면 전환, UI, 비트, 오디오 포커스와 앱 생명주기 |
+| [VehicleSeatMap.kt](../app/src/main/java/com/example/hyundaiapp/VehicleSeatMap.kt) | 차량 도면과 위치별 좌석 선택 버튼 |
 | [RhythmGame.kt](../app/src/main/java/com/example/hyundaiapp/RhythmGame.kt) | 노트 배정, 곡 시계, 터치·독서등 공통 판정, 점수와 결과 |
 | [VehicleInputs.kt](../app/src/main/java/com/example/hyundaiapp/VehicleInputs.kt) | 주차 확인, capability 조회, 좌석 상태 구독 및 진단 |
 | [SignalEdges.kt](../app/src/main/java/com/example/hyundaiapp/SignalEdges.kt) | 구독 첫 값과 동일값 반복을 판정에서 제외 |
