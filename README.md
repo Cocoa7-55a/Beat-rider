@@ -1,4 +1,4 @@
-# FAMILY BEAT — Pleos Connect 가족 협동 리듬게임
+# Beat Rider — 박자 탈래 가족 협동 리듬게임
 
 기존 HyundaiApp의 Kotlin / Jetpack Compose 프로젝트에 구현한 주차 전용 MVP입니다.
 Vehicle SDK 2.3.2, Pleos Connect v2.1.0 에뮬레이터에서 검증했습니다.
