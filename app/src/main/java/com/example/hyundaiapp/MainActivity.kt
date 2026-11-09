@@ -31,7 +31,7 @@ private val seatColors = listOf(Color(0xFFFFC857), Color(0xFF72DDF7), Color(0xFF
 private val navy = Color(0xFF101629)
 
 class MainActivity : ComponentActivity() {
-    private val game = RhythmGame()
+    private val game = RhythmGame { android.util.Log.i("FamilyBeat", it) }
     private lateinit var inputs: VehicleInputs
     private var tone: ToneGenerator? = null
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -166,3 +166,4 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+

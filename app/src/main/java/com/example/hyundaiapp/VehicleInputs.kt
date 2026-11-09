@@ -22,6 +22,8 @@ class VehicleInputs(context: Context, val onHit: (Int, Long) -> Unit, val onUnsa
     private var ux: CarUxRestrictionsManager? = null
     private var closed = false
     private var gearAt = 0L
+    private var gearRequest = 0L
+    private var gearApplied = 0L
     private var gearPark = false
     private var uxSafe = false
     var parked by mutableStateOf(false)
@@ -36,7 +38,7 @@ class VehicleInputs(context: Context, val onHit: (Int, Long) -> Unit, val onUnsa
     private val values = arrayOf(SeatValue.ROW_1_LEFT, SeatValue.ROW_1_RIGHT, SeatValue.ROW_2_LEFT, SeatValue.ROW_2_RIGHT)
     private val areas = values.map { SeatArea(it) }
     private val listeners = mutableMapOf<Int, LightStateListener>()
-    private val previous = arrayOfNulls<LightState>(4)
+    private val edges = List(4) { SignalEdges<LightState>() }
     private val lastEvent = LongArray(4)
     private var probing = false
     private fun main(block: () -> Unit) { handler.post { if (!closed) block() } }
@@ -45,8 +47,10 @@ class VehicleInputs(context: Context, val onHit: (Int, Long) -> Unit, val onUnsa
         android.util.Log.i("FamilyBeat", message)
     }
     private fun updateSafety() {
+        val wasParked = parked
         parked = gearPark && uxSafe && SystemClock.elapsedRealtime() - gearAt < 2000
         status = if (parked) "P · 주차 확인" else "주차 미확인 / 주행 제한 · 일시정지"
+        if (wasParked != parked) log("SAFETY parked=$parked gear=$gearPark ux=$uxSafe")
         if (!parked) onUnsafe()
     }
     private val poll = object : Runnable {
@@ -54,9 +58,13 @@ class VehicleInputs(context: Context, val onHit: (Int, Long) -> Unit, val onUnsa
             if (closed) return
             updateSafety()
             try {
+                val request = ++gearRequest
+                val requestedAt = SystemClock.elapsedRealtime()
                 vehicle.getGear().getCurrentGearSelectionState({ gear -> main {
-                    gearPark = gear == VehicleGear.GEAR_PARK; gearAt = SystemClock.elapsedRealtime(); updateSafety()
-                } }, { main { gearPark = false; updateSafety() } })
+                    if (request < gearApplied) return@main
+                    gearApplied = request; gearAt = requestedAt
+                    gearPark = gear == VehicleGear.GEAR_PARK; updateSafety()
+                } }, { main { if (request >= gearApplied) { gearApplied = request; gearPark = false; updateSafety() } } })
                 uxSafe = ux?.currentCarUxRestrictions?.isRequiresDistractionOptimization == false
                 updateSafety()
             } catch (_: Exception) { gearPark = false; uxSafe = false; updateSafety() }
@@ -100,23 +108,27 @@ class VehicleInputs(context: Context, val onHit: (Int, Long) -> Unit, val onUnsa
                 log("점등 ${config.accessType} / ${map.keys.joinToString { it.values.joinToString() }}")
                 areas.forEachIndexed { i, area ->
                     supported[i] = map.containsKey(area) && config.accessType in listOf(AccessType.READ, AccessType.READ_WRITE)
+                    if (!supported[i]) {
+                        verified[i] = false; changed[i] = false; edges[i].reset(); states[i] = "미지원"
+                        listeners.remove(i)?.let { light.unregisterReadingLightState(area, it) }
+                    }
                     if (supported[i] && !listeners.containsKey(i)) {
                         val listener = object : LightStateListener {
                             override fun onLightStateUpdated(value: LightState?) {
                                 val received = SystemClock.elapsedRealtime()
                                 main {
-                                    if (value == null) { previous[i] = null; verified[i] = false; return@main }
+                                    if (value == null) { edges[i].reset(); verified[i] = false; changed[i] = false; states[i] = "미확인"; return@main }
                                     states[i] = value.toString()
-                                    val old = previous[i]; previous[i] = value
-                                    if (old == null || old == value) return@main
+                                    val old = edges[i].previous
+                                    if (!edges[i].accept(value)) return@main
                                     val interval = if (lastEvent[i] == 0L) 0 else received - lastEvent[i]
                                     lastEvent[i] = received; changed[i] = true
                                     log("${values[i]} $old → $value · 수신 $received ms · 간격 $interval ms")
-                                    if (experimental && verified[i] && parked) onHit(i, received)
+                                    if (experimental && supported[i] && verified[i] && parked) onHit(i, received)
                                 }
                             }
                             override fun onFailed(e: Exception) = main {
-                                previous[i] = null; verified[i] = false; changed[i] = false
+                                edges[i].reset(); verified[i] = false; changed[i] = false
                                 states[i] = "오류"; log("${values[i]} ${e.message}")
                             }
                         }
@@ -133,3 +145,4 @@ class VehicleInputs(context: Context, val onHit: (Int, Long) -> Unit, val onUnsa
         runCatching { ux?.unregisterListener() }; runCatching { car?.disconnect() }; vehicle.release()
     }
 }
+
