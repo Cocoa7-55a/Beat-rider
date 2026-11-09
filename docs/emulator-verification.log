@@ -1,0 +1,107 @@
+11-09 03:49:22.450 11026 11026 I FamilyBeat: SAFETY parked=true gear=true ux=true
+11-09 03:49:22.451 11026 11026 I FamilyBeat: 스위치 READ_WRITE / ROW_2_LEFT, ROW_2_RIGHT, ROW_1_LEFT, ROW_1_RIGHT
+11-09 03:49:22.458 11026 11026 I FamilyBeat: 점등 READ / ROW_2_LEFT, ROW_2_RIGHT, ROW_1_LEFT, ROW_1_RIGHT
+11-09 03:50:02.904 11026 11026 I FamilyBeat: HIT seat=0 source=touch errorMs=30 score=100
+11-09 03:50:03.422 11026 11026 I FamilyBeat: HIT seat=1 source=touch errorMs=11 score=200
+11-09 03:50:03.943 11026 11026 I FamilyBeat: HIT seat=2 source=touch errorMs=10 score=300
+11-09 03:50:04.396 11026 11026 I FamilyBeat: HIT seat=3 source=touch errorMs=37 score=400
+11-09 03:50:04.922 11026 11026 I FamilyBeat: HIT seat=0 source=touch errorMs=12 score=500
+11-09 03:50:05.396 11026 11026 I FamilyBeat: HIT seat=1 source=touch errorMs=38 score=600
+11-09 03:50:05.898 11026 11026 I FamilyBeat: HIT seat=2 source=touch errorMs=37 score=700
+11-09 03:50:06.455 11026 11026 I FamilyBeat: HIT seat=3 source=touch errorMs=17 score=800
+11-09 03:50:06.898 11026 11026 I FamilyBeat: HIT seat=0 source=touch errorMs=35 score=900
+11-09 03:50:07.427 11026 11026 I FamilyBeat: HIT seat=1 source=touch errorMs=7 score=1000
+11-09 03:50:07.900 11026 11026 I FamilyBeat: HIT seat=2 source=touch errorMs=34 score=1100
+11-09 03:50:08.401 11026 11026 I FamilyBeat: HIT seat=3 source=touch errorMs=32 score=1200
+11-09 03:50:08.902 11026 11026 I FamilyBeat: HIT seat=0 source=touch errorMs=31 score=1300
+11-09 03:50:09.398 11026 11026 I FamilyBeat: HIT seat=1 source=touch errorMs=36 score=1400
+11-09 03:50:09.894 11026 11026 I FamilyBeat: HIT seat=2 source=touch errorMs=40 score=1500
+11-09 03:50:10.399 11026 11026 I FamilyBeat: HIT seat=3 source=touch errorMs=35 score=1600
+11-09 03:50:10.927 11026 11026 I FamilyBeat: HIT seat=0 source=touch errorMs=7 score=1700
+11-09 03:50:11.403 11026 11026 I FamilyBeat: HIT seat=1 source=touch errorMs=34 score=1800
+11-09 03:50:11.929 11026 11026 I FamilyBeat: HIT seat=2 source=touch errorMs=4 score=1900
+11-09 03:50:12.402 11026 11026 I FamilyBeat: HIT seat=3 source=touch errorMs=34 score=2000
+11-09 03:50:12.900 11026 11026 I FamilyBeat: HIT seat=0 source=touch errorMs=34 score=2100
+11-09 03:50:13.404 11026 11026 I FamilyBeat: HIT seat=1 source=touch errorMs=29 score=2200
+11-09 03:50:13.922 11026 11026 I FamilyBeat: HIT seat=2 source=touch errorMs=11 score=2300
+11-09 03:50:14.422 11026 11026 I FamilyBeat: HIT seat=3 source=touch errorMs=12 score=2400
+11-09 03:50:14.884 11026 11026 I FamilyBeat: HIT seat=0 source=touch errorMs=49 score=2500
+11-09 03:50:15.394 11026 11026 I FamilyBeat: HIT seat=1 source=touch errorMs=39 score=2600
+11-09 03:50:15.896 11026 11026 I FamilyBeat: HIT seat=2 source=touch errorMs=37 score=2700
+11-09 03:50:16.399 11026 11026 I FamilyBeat: HIT seat=3 source=touch errorMs=34 score=2800
+11-09 03:50:16.885 11026 11026 I FamilyBeat: HIT seat=0 source=touch errorMs=48 score=2900
+11-09 03:50:17.426 11026 11026 I FamilyBeat: HIT seat=1 source=touch errorMs=7 score=3000
+11-09 03:50:17.921 11026 11026 I FamilyBeat: HIT seat=2 source=touch errorMs=12 score=3100
+11-09 03:50:18.396 11026 11026 I FamilyBeat: HIT seat=3 source=touch errorMs=38 score=3200
+11-09 03:50:48.648 11026 11026 I FamilyBeat: 점등 READ / ROW_2_LEFT, ROW_2_RIGHT, ROW_1_LEFT, ROW_1_RIGHT
+11-09 03:50:48.648 11026 11026 I FamilyBeat: 스위치 READ_WRITE / ROW_2_LEFT, ROW_2_RIGHT, ROW_1_LEFT, ROW_1_RIGHT
+11-09 03:50:48.998 11026 11026 I FamilyBeat: ROW_1_LEFT ON → OFF · 수신 2249997 ms · 간격 0 ms
+11-09 03:50:48.998 11026 11026 I FamilyBeat: ROW_1_RIGHT ON → OFF · 수신 2249997 ms · 간격 0 ms
+11-09 03:50:49.041 11026 11026 I FamilyBeat: ROW_2_LEFT ON → OFF · 수신 2250002 ms · 간격 0 ms
+11-09 03:50:49.041 11026 11026 I FamilyBeat: ROW_2_RIGHT ON → OFF · 수신 2250002 ms · 간격 0 ms
+11-09 03:50:52.116 11026 11026 I FamilyBeat: 스위치 READ_WRITE / ROW_2_LEFT, ROW_2_RIGHT, ROW_1_LEFT, ROW_1_RIGHT
+11-09 03:50:52.127 11026 11026 I FamilyBeat: 점등 READ / ROW_2_LEFT, ROW_2_RIGHT, ROW_1_LEFT, ROW_1_RIGHT
+11-09 03:50:55.311 11026 11026 I FamilyBeat: ROW_1_LEFT OFF → ON · 수신 2256309 ms · 간격 6312 ms
+11-09 03:50:55.311 11026 11026 I FamilyBeat: HIT seat=0 source=light errorMs=191 score=60
+11-09 03:50:55.588 11026 11026 I FamilyBeat: ROW_1_RIGHT OFF → ON · 수신 2256573 ms · 간격 6576 ms
+11-09 03:50:55.588 11026 11026 I FamilyBeat: HIT seat=1 source=light errorMs=45 score=160
+11-09 03:50:56.073 11026 11026 I FamilyBeat: ROW_2_LEFT OFF → ON · 수신 2257072 ms · 간격 7070 ms
+11-09 03:50:56.073 11026 11026 I FamilyBeat: HIT seat=2 source=light errorMs=46 score=260
+11-09 03:50:56.590 11026 11026 I FamilyBeat: ROW_2_RIGHT OFF → ON · 수신 2257582 ms · 간격 7580 ms
+11-09 03:50:56.590 11026 11026 I FamilyBeat: HIT seat=3 source=light errorMs=36 score=360
+11-09 03:50:57.093 11026 11026 I FamilyBeat: ROW_1_LEFT ON → OFF · 수신 2258085 ms · 간격 1776 ms
+11-09 03:50:57.094 11026 11026 I FamilyBeat: HIT seat=0 source=light errorMs=33 score=460
+11-09 03:50:57.590 11026 11026 I FamilyBeat: ROW_1_RIGHT ON → OFF · 수신 2258579 ms · 간격 2006 ms
+11-09 03:50:57.590 11026 11026 I FamilyBeat: HIT seat=1 source=light errorMs=39 score=560
+11-09 03:50:58.089 11026 11026 I FamilyBeat: ROW_2_LEFT ON → OFF · 수신 2259082 ms · 간격 2010 ms
+11-09 03:50:58.089 11026 11026 I FamilyBeat: HIT seat=2 source=light errorMs=36 score=660
+11-09 03:50:58.578 11026 11026 I FamilyBeat: ROW_2_RIGHT ON → OFF · 수신 2259574 ms · 간격 1992 ms
+11-09 03:50:58.579 11026 11026 I FamilyBeat: HIT seat=3 source=light errorMs=44 score=760
+11-09 03:50:59.074 11026 11026 I FamilyBeat: ROW_1_LEFT OFF → ON · 수신 2260071 ms · 간격 1986 ms
+11-09 03:50:59.074 11026 11026 I FamilyBeat: HIT seat=0 source=light errorMs=47 score=860
+11-09 03:50:59.577 11026 11026 I FamilyBeat: ROW_1_RIGHT OFF → ON · 수신 2260575 ms · 간격 1996 ms
+11-09 03:50:59.577 11026 11026 I FamilyBeat: HIT seat=1 source=light errorMs=43 score=960
+11-09 03:51:00.084 11026 11026 I FamilyBeat: ROW_2_LEFT OFF → ON · 수신 2261082 ms · 간격 2000 ms
+11-09 03:51:00.085 11026 11026 I FamilyBeat: HIT seat=2 source=light errorMs=36 score=1060
+11-09 03:51:00.590 11026 11026 I FamilyBeat: ROW_2_RIGHT OFF → ON · 수신 2261582 ms · 간격 2008 ms
+11-09 03:51:00.590 11026 11026 I FamilyBeat: HIT seat=3 source=light errorMs=36 score=1160
+11-09 03:51:01.090 11026 11026 I FamilyBeat: ROW_1_LEFT ON → OFF · 수신 2262089 ms · 간격 2018 ms
+11-09 03:51:01.090 11026 11026 I FamilyBeat: HIT seat=0 source=light errorMs=29 score=1260
+11-09 03:51:01.578 11026 11026 I FamilyBeat: ROW_1_RIGHT ON → OFF · 수신 2262571 ms · 간격 1996 ms
+11-09 03:51:01.578 11026 11026 I FamilyBeat: HIT seat=1 source=light errorMs=47 score=1360
+11-09 03:51:02.089 11026 11026 I FamilyBeat: ROW_2_LEFT ON → OFF · 수신 2263082 ms · 간격 2000 ms
+11-09 03:51:02.089 11026 11026 I FamilyBeat: HIT seat=2 source=light errorMs=36 score=1460
+11-09 03:51:02.576 11026 11026 I FamilyBeat: ROW_2_RIGHT ON → OFF · 수신 2263569 ms · 간격 1987 ms
+11-09 03:51:02.577 11026 11026 I FamilyBeat: HIT seat=3 source=light errorMs=49 score=1560
+11-09 03:51:03.090 11026 11026 I FamilyBeat: ROW_1_LEFT OFF → ON · 수신 2264080 ms · 간격 1991 ms
+11-09 03:51:03.091 11026 11026 I FamilyBeat: HIT seat=0 source=light errorMs=38 score=1660
+11-09 03:51:03.597 11026 11026 I FamilyBeat: ROW_1_RIGHT OFF → ON · 수신 2264597 ms · 간격 2026 ms
+11-09 03:51:03.598 11026 11026 I FamilyBeat: HIT seat=1 source=light errorMs=21 score=1760
+11-09 03:51:04.093 11026 11026 I FamilyBeat: ROW_2_LEFT OFF → ON · 수신 2265083 ms · 간격 2001 ms
+11-09 03:51:04.093 11026 11026 I FamilyBeat: HIT seat=2 source=light errorMs=35 score=1860
+11-09 03:51:04.580 11026 11026 I FamilyBeat: ROW_2_RIGHT OFF → ON · 수신 2265573 ms · 간격 2004 ms
+11-09 03:51:04.580 11026 11026 I FamilyBeat: HIT seat=3 source=light errorMs=45 score=1960
+11-09 03:51:05.088 11026 11026 I FamilyBeat: ROW_1_LEFT ON → OFF · 수신 2266083 ms · 간격 2003 ms
+11-09 03:51:05.088 11026 11026 I FamilyBeat: HIT seat=0 source=light errorMs=35 score=2060
+11-09 03:51:05.578 11026 11026 I FamilyBeat: ROW_1_RIGHT ON → OFF · 수신 2266576 ms · 간격 1979 ms
+11-09 03:51:05.578 11026 11026 I FamilyBeat: HIT seat=1 source=light errorMs=42 score=2160
+11-09 03:51:06.072 11026 11026 I FamilyBeat: ROW_2_LEFT ON → OFF · 수신 2267064 ms · 간격 1981 ms
+11-09 03:51:06.073 11026 11026 I FamilyBeat: HIT seat=2 source=light errorMs=54 score=2260
+11-09 03:51:06.588 11026 11026 I FamilyBeat: ROW_2_RIGHT ON → OFF · 수신 2267578 ms · 간격 2005 ms
+11-09 03:51:06.588 11026 11026 I FamilyBeat: HIT seat=3 source=light errorMs=40 score=2360
+11-09 03:51:07.090 11026 11026 I FamilyBeat: ROW_1_LEFT OFF → ON · 수신 2268082 ms · 간격 1999 ms
+11-09 03:51:07.091 11026 11026 I FamilyBeat: HIT seat=0 source=light errorMs=36 score=2460
+11-09 03:51:07.575 11026 11026 I FamilyBeat: ROW_1_RIGHT OFF → ON · 수신 2268571 ms · 간격 1995 ms
+11-09 03:51:07.575 11026 11026 I FamilyBeat: HIT seat=1 source=light errorMs=47 score=2560
+11-09 03:51:08.083 11026 11026 I FamilyBeat: ROW_2_LEFT OFF → ON · 수신 2269080 ms · 간격 2016 ms
+11-09 03:51:08.083 11026 11026 I FamilyBeat: HIT seat=2 source=light errorMs=38 score=2660
+11-09 03:51:08.579 11026 11026 I FamilyBeat: ROW_2_RIGHT OFF → ON · 수신 2269577 ms · 간격 1999 ms
+11-09 03:51:08.580 11026 11026 I FamilyBeat: HIT seat=3 source=light errorMs=41 score=2760
+11-09 03:51:09.079 11026 11026 I FamilyBeat: ROW_1_LEFT ON → OFF · 수신 2270075 ms · 간격 1993 ms
+11-09 03:51:09.080 11026 11026 I FamilyBeat: HIT seat=0 source=light errorMs=43 score=2860
+11-09 03:51:09.584 11026 11026 I FamilyBeat: ROW_1_RIGHT ON → OFF · 수신 2270584 ms · 간격 2013 ms
+11-09 03:51:09.585 11026 11026 I FamilyBeat: HIT seat=1 source=light errorMs=34 score=2960
+11-09 03:51:10.078 11026 11026 I FamilyBeat: ROW_2_LEFT ON → OFF · 수신 2271077 ms · 간격 1997 ms
+11-09 03:51:10.079 11026 11026 I FamilyBeat: HIT seat=2 source=light errorMs=41 score=3060
+11-09 03:51:10.577 11026 11026 I FamilyBeat: ROW_2_RIGHT ON → OFF · 수신 2271576 ms · 간격 1999 ms
+11-09 03:51:10.577 11026 11026 I FamilyBeat: HIT seat=3 source=light errorMs=42 score=3160

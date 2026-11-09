@@ -1,5 +1,7 @@
 package com.example.hyundaiapp
 
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.Bundle
@@ -34,16 +36,37 @@ class MainActivity : ComponentActivity() {
     private val game = RhythmGame { android.util.Log.i("FamilyBeat", it) }
     private lateinit var inputs: VehicleInputs
     private var tone: ToneGenerator? = null
+    private var audioFocused = false
+    private val audioManager by lazy { getSystemService(AudioManager::class.java) }
+    private val focusRequest by lazy {
+        AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+            .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
+            .setOnAudioFocusChangeListener { change ->
+                if (change != AudioManager.AUDIOFOCUS_GAIN) {
+                    audioFocused = false; game.pause(); tone?.stopTone()
+                }
+            }.build()
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         tone = runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, 45) }.getOrNull()
         inputs = VehicleInputs(this, { seat, time -> game.hit(seat, time, true) }, { game.pause() })
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(background = navy, surface = Color(0xFF1D2640), primary = Color(0xFF72DDF7))) {
+                LaunchedEffect(game.running) {
+                    if (game.running) {
+                        audioFocused = audioManager.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+                        if (!audioFocused) game.pause()
+                    } else {
+                        tone?.stopTone(); audioFocused = false
+                        audioManager.abandonAudioFocusRequest(focusRequest)
+                    }
+                }
                 LaunchedEffect(Unit) {
                     while (true) {
                         game.tick(SystemClock.elapsedRealtime()) {
-                            tone?.startTone(if ((game.elapsed / 500) % 4 == 0L) ToneGenerator.TONE_PROP_ACK else ToneGenerator.TONE_PROP_BEEP, 65)
+                            if (audioFocused) tone?.startTone(if ((game.elapsed / 500) % 4 == 0L) ToneGenerator.TONE_PROP_ACK else ToneGenerator.TONE_PROP_BEEP, 65)
                         }
                         delay(16)
                     }
@@ -69,7 +92,7 @@ class MainActivity : ComponentActivity() {
         }
     }
     override fun onPause() { game.pause(); tone?.stopTone(); super.onPause() }
-    override fun onDestroy() { inputs.close(); tone?.release(); super.onDestroy() }
+    override fun onDestroy() { inputs.close(); audioManager.abandonAudioFocusRequest(focusRequest); tone?.release(); super.onDestroy() }
 
     @Composable private fun Home() {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(20.dp)) {
@@ -111,7 +134,7 @@ class MainActivity : ComponentActivity() {
             repeat(4) { i ->
                 Row(Modifier.fillMaxWidth().background(Color(0xFF1D2640), RoundedCornerShape(12.dp)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("${seatIcons[i]} ${seatNames[i]}", color = seatColors[i], modifier = Modifier.weight(1f))
-                    Text("스위치 ${inputs.switches[i]}  /  점등 ${inputs.states[i]}", Modifier.weight(2f))
+                    Text("스위치 조회값 ${inputs.switches[i]}  /  현재 점등 ${inputs.states[i]}", Modifier.weight(2f))
                     Checkbox(inputs.verified[i], { inputs.verified[i] = it }, enabled = inputs.supported[i] && inputs.changed[i])
                     Text("자리 확인")
                 }
@@ -166,4 +189,5 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
 

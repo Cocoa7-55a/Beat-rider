@@ -46,6 +46,13 @@ class VehicleInputs(context: Context, val onHit: (Int, Long) -> Unit, val onUnsa
         logs.add(0, message); while (logs.size > 8) logs.removeAt(logs.lastIndex)
         android.util.Log.i("FamilyBeat", message)
     }
+    private fun invalidateLight(i: Int) {
+        supported[i] = false; verified[i] = false; changed[i] = false
+        edges[i].reset(); lastEvent[i] = 0; states[i] = "미확인"
+        listeners.remove(i)?.let { listener ->
+            runCatching { vehicle.getLight().unregisterReadingLightState(areas[i], listener) }
+        }
+    }
     private fun updateSafety() {
         val wasParked = parked
         parked = gearPark && uxSafe && SystemClock.elapsedRealtime() - gearAt < 2000
@@ -114,7 +121,8 @@ class VehicleInputs(context: Context, val onHit: (Int, Long) -> Unit, val onUnsa
                     }
                     if (supported[i] && !listeners.containsKey(i)) {
                         val listener = object : LightStateListener {
-                            override fun onLightStateUpdated(value: LightState?) {
+                            override fun onLightStateUpdated(state: LightState?) {
+                                val value = state
                                 val received = SystemClock.elapsedRealtime()
                                 main {
                                     if (value == null) { edges[i].reset(); verified[i] = false; changed[i] = false; states[i] = "미확인"; return@main }
@@ -128,7 +136,7 @@ class VehicleInputs(context: Context, val onHit: (Int, Long) -> Unit, val onUnsa
                                 }
                             }
                             override fun onFailed(e: Exception) = main {
-                                edges[i].reset(); verified[i] = false; changed[i] = false
+                                invalidateLight(i)
                                 states[i] = "오류"; log("${values[i]} ${e.message}")
                             }
                         }
@@ -136,8 +144,8 @@ class VehicleInputs(context: Context, val onHit: (Int, Long) -> Unit, val onUnsa
                         light.registerReadingLightState(area, listener)
                     }
                 }
-            } }, { e -> main { probing = false; log("점등 조회 실패: ${e.message}") } })
-        } catch (e: Exception) { probing = false; log("SDK 오류: ${e.message}") }
+            } }, { e -> main { probing = false; areas.indices.forEach { invalidateLight(it) }; log("점등 조회 실패: ${e.message}") } })
+        } catch (e: Exception) { probing = false; areas.indices.forEach { invalidateLight(it) }; log("SDK 오류: ${e.message}") }
     }
     fun close() {
         closed = true; handler.removeCallbacksAndMessages(null)
@@ -145,4 +153,5 @@ class VehicleInputs(context: Context, val onHit: (Int, Long) -> Unit, val onUnsa
         runCatching { ux?.unregisterListener() }; runCatching { car?.disconnect() }; vehicle.release()
     }
 }
+
 
