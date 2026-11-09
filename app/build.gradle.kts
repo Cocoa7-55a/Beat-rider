@@ -4,6 +4,7 @@ plugins {
 }
 
 android {
+    useLibrary("android.car", false)
     namespace = "com.example.hyundaiapp"
     compileSdk {
         version = release(37)
@@ -54,3 +55,4 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
+
