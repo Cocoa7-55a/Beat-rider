@@ -3,6 +3,8 @@ package com.example.hyundaiapp
 import androidx.compose.runtime.*
 import kotlin.math.abs
 
+internal const val RESUME_COUNTDOWN_MS = 3000L
+
 data class BeatNote(val seat: Int, val time: Long, var judged: Boolean = false)
 class RhythmGame(private val log: (String) -> Unit = {}) {
     var screen by mutableStateOf("home")
@@ -14,6 +16,10 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
     var hits by mutableIntStateOf(0)
     var feedback by mutableStateOf("함께 박자를 맞춰요")
     var practice by mutableStateOf(false)
+    var noteSpeed by mutableFloatStateOf(1f)
+    var resumeRemainingMs by mutableLongStateOf(0L)
+        private set
+    private var resumeAt = 0L
     val active = mutableStateListOf(true, true, true, true)
     var notes = listOf<BeatNote>()
     var offsetMs by mutableLongStateOf(0)
@@ -26,13 +32,32 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
         val seats = active.indices.filter { active[it] }
         if (seats.isEmpty()) return
         notes = (0 until 32).map { BeatNote(seats[it % seats.size], 2000L + it * 500L) }
+        pause()
         elapsed = 0; score = 0; combo = 0; best = 0; hits = 0
         lastBeat = -1; lastFrame = now; segmentStart = now; running = true; screen = "play"
         feedback = "준비! 4박자 후 시작"
     }
-    fun pause() { running = false }
-    fun resume(now: Long) { if (screen == "play") { lastFrame = now; segmentStart = now; running = true } }
+    fun pause() {
+        running = false
+        resumeRemainingMs = 0
+    }
+
+    fun resume(now: Long) {
+        if (screen != "play" || running || resumeRemainingMs > 0) return
+        resumeAt = now + RESUME_COUNTDOWN_MS
+        resumeRemainingMs = RESUME_COUNTDOWN_MS
+    }
+
     fun tick(now: Long, beat: () -> Unit) {
+        if (resumeRemainingMs > 0) {
+            resumeRemainingMs = (resumeAt - now).coerceAtLeast(0)
+            if (resumeRemainingMs == 0L) {
+                lastFrame = now
+                segmentStart = now
+                running = true
+            }
+            return
+        }
         if (!running) return
         elapsed += (now - lastFrame).coerceAtLeast(0); lastFrame = now
         val current = elapsed / 500
@@ -54,4 +79,3 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
         log("HIT seat=$seat source=${if(vehicle) "light" else "touch"} errorMs=$error score=$score")
     }
 }
-

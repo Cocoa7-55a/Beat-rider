@@ -16,12 +16,41 @@ class RhythmGameTest {
         assertEquals(3200, game.score); assertEquals(32, game.best)
         assertEquals("result", game.screen)
     }
-    @Test fun pausedTimeAndQueuedOldInputDoNotScore() {
-        val game = RhythmGame(); game.start(0); game.tick(1000) {}
-        game.pause(); game.hit(0, 2000); game.tick(9000) {}
-        assertEquals(0, game.hits); assertEquals(1000L, game.elapsed)
-        game.resume(10000); game.hit(0, 2000)
-        game.hit(0, 11000); assertEquals(1, game.hits)
+    @Test fun countdownFreezesSongAndRejectsInputsUntilResumed() {
+        val game = RhythmGame()
+        game.start(0)
+        game.tick(1900) {}
+        game.pause()
+        game.resume(10000)
+
+        game.tick(12999) { fail("Countdown must not play a beat") }
+        game.hit(0, 12999, vehicle = true)
+        assertEquals(0, game.hits)
+        assertEquals(1900L, game.elapsed)
+        assertFalse(game.running)
+        assertEquals(1L, game.resumeRemainingMs)
+
+        game.tick(13000) {}
+        assertTrue(game.running)
+        assertEquals(0L, game.resumeRemainingMs)
+        assertEquals(1900L, game.elapsed)
+        game.hit(0, 12999, vehicle = true)
+        assertEquals(0, game.hits)
+        game.hit(0, 13100)
+        assertEquals(1, game.hits)
+    }
+
+    @Test fun pausingAgainCancelsPendingResume() {
+        val game = RhythmGame()
+        game.start(0)
+        game.pause()
+        game.resume(1000)
+        game.tick(2000) {}
+        game.pause()
+        game.tick(4000) {}
+
+        assertEquals(0L, game.resumeRemainingMs)
+        assertFalse(game.running)
     }
     @Test fun callbackReceiptTimeIsUsedEvenAfterNextFrame() {
         val game = RhythmGame(); game.start(0); game.tick(2100) {}

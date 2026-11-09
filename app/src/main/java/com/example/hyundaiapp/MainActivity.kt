@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -18,6 +19,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
@@ -25,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.util.Locale
 import kotlinx.coroutines.delay
 
 private val seatNames = listOf("운전석", "조수석", "뒷좌석 왼쪽", "뒷좌석 오른쪽")
@@ -114,6 +117,16 @@ class MainActivity : ComponentActivity() {
                 Switch(game.practice, { game.practice = it })
                 Text("연습 모드 · 판정 시간을 넉넉하게")
             }
+            Column {
+                Text("노트 낙하 속도 · " + String.format(Locale.ROOT, "%.2f×", game.noteSpeed))
+                Slider(
+                    value = game.noteSpeed,
+                    onValueChange = { game.noteSpeed = it },
+                    valueRange = 0.5f..2f,
+                    steps = 5
+                )
+                Text("낮은 배속에서는 노트가 화면에 더 일찍 나타나요.", color = Color(0xFFACB8D4))
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Button(onClick = { if (inputs.parked) game.start(SystemClock.elapsedRealtime()) }, enabled = inputs.parked, modifier = Modifier.height(60.dp)) { Text("함께 시작", fontSize = 20.sp) }
                 OutlinedButton(onClick = { inputs.probe(); game.screen = "test" }, modifier = Modifier.height(60.dp)) { Text("독서등 입력 테스트") }
@@ -151,18 +164,44 @@ class MainActivity : ComponentActivity() {
             Text("가족 점수 ${game.score}    ${game.combo} COMBO", fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Text("${(game.duration - game.elapsed).coerceAtLeast(0) / 1000}초", fontSize = 24.sp)
         }
-        Text(if (game.running) game.feedback else "일시정지 · 주차 확인 후 이어가기를 눌러 주세요", color = Color(0xFFFFC857))
+        val countingDown = game.resumeRemainingMs > 0
+        val message = when {
+            countingDown -> "곧 연주를 이어갑니다"
+            game.running -> game.feedback
+            else -> "일시정지 · 주차 확인 후 이어가기를 눌러 주세요"
+        }
+        Text(message, color = Color(0xFFFFC857))
         val seats = game.active.indices.filter { game.active[it] }
-        Canvas(Modifier.weight(1f).fillMaxWidth().background(Color(0xFF171F35), RoundedCornerShape(16.dp))) {
-            val width = size.width / seats.size
-            val line = size.height * .82f
-            seats.forEachIndexed { lane, seat ->
-                drawLine(seatColors[seat].copy(alpha=.15f), Offset(width * lane, 0f), Offset(width * lane, size.height), 2f)
-                drawLine(seatColors[seat], Offset(width * lane + 14, line), Offset(width * (lane + 1) - 14, line), 5f)
-                game.notes.filter { it.seat == seat && !it.judged }.forEach { note ->
-                    val y = line - (note.time - game.elapsed).toFloat() / 2000f * line
-                    if (y in -24f..size.height) drawRoundRect(seatColors[seat], Offset(width * lane + width * .2f, y - 10), Size(width * .6f, 20f), CornerRadius(10f))
+        Box(Modifier.weight(1f).fillMaxWidth().background(Color(0xFF171F35), RoundedCornerShape(16.dp))) {
+            Canvas(Modifier.fillMaxSize().clipToBounds()) {
+                val width = size.width / seats.size
+                val line = size.height * .82f
+                val countdownElapsed = RESUME_COUNTDOWN_MS - game.resumeRemainingMs
+                // Lift the notes, then settle them back at the frozen song position.
+                val liftProgress = when {
+                    countdownElapsed < 450 -> countdownElapsed / 450f
+                    else -> game.resumeRemainingMs / (RESUME_COUNTDOWN_MS - 450).toFloat()
                 }
+                val lift = line * .42f * FastOutSlowInEasing.transform(liftProgress)
+                val travelMs = 2000f / game.noteSpeed
+                seats.forEachIndexed { lane, seat ->
+                    drawLine(seatColors[seat].copy(alpha=.15f), Offset(width * lane, 0f), Offset(width * lane, size.height), 2f)
+                    drawLine(seatColors[seat], Offset(width * lane + 14, line), Offset(width * (lane + 1) - 14, line), 5f)
+                    game.notes.filter { it.seat == seat && !it.judged }.forEach { note ->
+                        val y = line - (note.time - game.elapsed).toFloat() / travelMs * line - lift
+                        if (y in -24f..size.height) drawRoundRect(seatColors[seat], Offset(width * lane + width * .2f, y - 10), Size(width * .6f, 20f), CornerRadius(10f))
+                    }
+                }
+            }
+            if (countingDown) {
+                Text(
+                    text = ((game.resumeRemainingMs + 999) / 1000).toString(),
+                    modifier = Modifier.align(Alignment.Center)
+                        .background(navy.copy(alpha = .92f), RoundedCornerShape(16.dp))
+                        .padding(horizontal = 32.dp, vertical = 8.dp),
+                    fontSize = 64.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -176,7 +215,7 @@ class MainActivity : ComponentActivity() {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedButton(onClick={ game.pause(); game.screen="home" }) { Text("로비로") }
             if (game.running) OutlinedButton(onClick={ game.pause() }) { Text("잠깐 쉬기") }
-            else Button(onClick={ if(inputs.parked) game.resume(SystemClock.elapsedRealtime()) }, enabled=inputs.parked) { Text("이어가기") }
+            else Button(onClick={ if(inputs.parked) game.resume(SystemClock.elapsedRealtime()) }, enabled=inputs.parked && !countingDown) { Text(if (countingDown) "재개 준비 중" else "이어가기") }
         }
     }
     @Composable private fun Result() {
@@ -189,5 +228,3 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
-
-
