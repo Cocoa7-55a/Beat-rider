@@ -25,8 +25,8 @@ import androidx.compose.ui.unit.sp
 
 private val blueprintInk = Color(0xFF8AA8CA)
 private val diagramLabel = Color(0xFFB8CAE0)
-private val vehicleWidth = 360f
-private val vehicleLength = 520f
+private val vehicleWidth = 340f
+private val vehicleLength = 670f
 
 @Composable
 internal fun VehicleSeatMap(
@@ -38,13 +38,13 @@ internal fun VehicleSeatMap(
     val selectedCount = active.count { it }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Text("▲  차량 앞쪽", color = diagramLabel, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        BoxWithConstraints(Modifier.widthIn(max = 360.dp).fillMaxWidth().aspectRatio(vehicleWidth / vehicleLength)) {
+        BoxWithConstraints(Modifier.widthIn(max = 330.dp).fillMaxWidth().aspectRatio(vehicleWidth / vehicleLength)) {
             VehicleOutline(Modifier.matchParentSize())
-            val buttonWidth = maxWidth * .33f
-            val buttonHeight = maxHeight * .155f
+            val buttonWidth = maxWidth * .255f
+            val buttonHeight = maxHeight * .108f
             active.forEachIndexed { seat, selected ->
-                val centerX = if (seat % 2 == 0) .32f else .68f
-                val centerY = if (seat < 2) .39f else .63f
+                val centerX = if (seat % 2 == 0) .37f else .63f
+                val centerY = if (seat < 2) .506f else .667f
                 val color = seatColors[seat]
                 val shape = RoundedCornerShape(12.dp)
                 Column(
@@ -62,12 +62,12 @@ internal fun VehicleSeatMap(
                             role = Role.Checkbox,
                             onValueChange = { onSeatSelected(seat, it) }
                         )
-                        .padding(horizontal = 4.dp),
+                        .padding(horizontal = 3.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
                     Text(seatIcons[seat], color = color, fontSize = 18.sp)
-                    Text(seatNames[seat], fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text(seatNames[seat], fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     val status = when {
                         !selected -> "참가 안 함"
                         hasLightInput(seat) -> "독서등 + 터치"
@@ -86,73 +86,97 @@ private fun VehicleOutline(modifier: Modifier) {
     Canvas(modifier) {
         withTransform({
             scale(size.width / vehicleWidth, size.height / vehicleLength, pivot = Offset.Zero)
+            // Rotate the reference top view so its left-facing nose points up.
+            translate(682f, -19f)
+            rotate(90f, pivot = Offset.Zero)
         }) {
-            // Top view: wheel and mirror placement separates the front and rear of the car.
-            for (x in listOf(29f, 305f)) {
-                for (y in listOf(75f, 378f)) {
-                    drawRoundRect(
-                        Color(0xFF0C1221), Offset(x, y), Size(26f, 65f), CornerRadius(8f)
-                    )
-                    drawRoundRect(
-                        blueprintInk.copy(alpha = .36f),
-                        Offset(x, y), Size(26f, 65f), CornerRadius(8f), style = Stroke(1.5f)
-                    )
-                }
-            }
-
             val body = Path().apply {
-                moveTo(89f, 19f)
-                quadraticTo(180f, 4f, 271f, 19f)
-                quadraticTo(310f, 25f, 315f, 70f)
-                lineTo(323f, 144f)
-                lineTo(318f, 417f)
-                quadraticTo(315f, 481f, 283f, 497f)
-                quadraticTo(180f, 511f, 77f, 497f)
-                quadraticTo(45f, 481f, 42f, 417f)
-                lineTo(37f, 144f)
-                lineTo(45f, 70f)
-                quadraticTo(50f, 25f, 89f, 19f)
+                moveTo(43f, 512f)
+                cubicTo(43f, 481f, 44f, 450f, 55f, 428f)
+                cubicTo(63f, 408f, 77f, 393f, 100f, 389f)
+                cubicTo(125f, 386f, 154f, 386f, 188f, 386f)
+                lineTo(580f, 386f)
+                cubicTo(606f, 386f, 627f, 387f, 640f, 402f)
+                cubicTo(655f, 418f, 660f, 455f, 662f, 491f)
+                quadraticTo(663f, 512f, 662f, 533f)
+                cubicTo(660f, 569f, 655f, 606f, 640f, 622f)
+                cubicTo(627f, 637f, 606f, 638f, 580f, 638f)
+                lineTo(188f, 638f)
+                cubicTo(154f, 638f, 125f, 638f, 100f, 635f)
+                cubicTo(77f, 631f, 63f, 616f, 55f, 596f)
+                cubicTo(44f, 574f, 43f, 543f, 43f, 512f)
                 close()
             }
             drawPath(body, Color(0xFF243650))
             drawPath(body, blueprintInk, style = Stroke(2f))
 
+            for (side in listOf(-1f, 1f)) {
+                val shoulder = Path().apply {
+                    moveTo(58f, 512f + 82f * side)
+                    cubicTo(97f, 512f + 104f * side, 149f, 512f + 109f * side, 208f, 512f + 108f * side)
+                    cubicTo(273f, 512f + 106f * side, 320f, 512f + 92f * side, 408f, 512f + 91f * side)
+                    cubicTo(491f, 512f + 91f * side, 564f, 512f + 101f * side, 620f, 512f + 111f * side)
+                }
+                drawPath(shoulder, blueprintInk.copy(alpha = .48f), style = Stroke(1.5f))
+
+                val mirror = Path().apply {
+                    moveTo(245f, 512f + 105f * side)
+                    lineTo(253f, 512f + 126f * side)
+                    quadraticTo(267f, 512f + 145f * side, 280f, 512f + 145f * side)
+                    lineTo(267f, 512f + 104f * side)
+                    close()
+                }
+                drawPath(mirror, Color(0xFF344D6A))
+                drawPath(mirror, blueprintInk, style = Stroke(1.5f))
+
+                val lampOffset = if (side < 0) 412f else 570f
+                drawRoundRect(Color(0xFFC8E7FF), Offset(64f, lampOffset), Size(7f, 42f), CornerRadius(2f))
+                drawRoundRect(Color(0xFFEB849E), Offset(636f, lampOffset), Size(7f, 42f), CornerRadius(2f))
+            }
+
             val cabin = Path().apply {
-                moveTo(84f, 106f)
-                quadraticTo(180f, 83f, 276f, 106f)
-                lineTo(291f, 163f)
-                lineTo(289f, 387f)
-                quadraticTo(180f, 422f, 71f, 387f)
-                lineTo(69f, 163f)
+                moveTo(225f, 414f)
+                cubicTo(268f, 415f, 313f, 428f, 367f, 428f)
+                lineTo(529f, 428f)
+                quadraticTo(562f, 428f, 572f, 461f)
+                quadraticTo(583f, 512f, 572f, 563f)
+                quadraticTo(562f, 596f, 529f, 596f)
+                lineTo(367f, 596f)
+                cubicTo(313f, 596f, 268f, 609f, 225f, 610f)
+                cubicTo(196f, 601f, 181f, 562f, 181f, 512f)
+                cubicTo(181f, 462f, 196f, 423f, 225f, 414f)
                 close()
             }
             drawPath(cabin, Color(0xFF131F34))
             drawPath(cabin, blueprintInk.copy(alpha = .7f), style = Stroke(1.6f))
+
             val windshield = Path().apply {
-                moveTo(84f, 106f)
-                quadraticTo(180f, 83f, 276f, 106f)
-                lineTo(287f, 146f)
-                quadraticTo(180f, 123f, 73f, 146f)
+                moveTo(225f, 416f)
+                quadraticTo(266f, 418f, 306f, 432f)
+                quadraticTo(295f, 512f, 306f, 592f)
+                quadraticTo(266f, 606f, 225f, 608f)
+                cubicTo(200f, 594f, 185f, 557f, 185f, 512f)
+                cubicTo(185f, 467f, 200f, 430f, 225f, 416f)
                 close()
             }
-            drawPath(windshield, Color(0xFF344D6A))
-            drawPath(windshield, blueprintInk.copy(alpha = .6f), style = Stroke(1.5f))
-
-            for (x in listOf(21f, 316f)) {
-                drawRoundRect(Color(0xFF344D6A), Offset(x, 133f), Size(23f, 16f), CornerRadius(5f))
-                drawRoundRect(blueprintInk, Offset(x, 133f), Size(23f, 16f), CornerRadius(5f), style = Stroke(1.5f))
+            val hatch = Path().apply {
+                moveTo(531f, 432f)
+                cubicTo(578f, 419f, 597f, 430f, 611f, 453f)
+                quadraticTo(631f, 512f, 611f, 571f)
+                cubicTo(597f, 594f, 578f, 605f, 531f, 592f)
+                quadraticTo(574f, 512f, 531f, 432f)
+                close()
+            }
+            for (glass in listOf(windshield, hatch)) {
+                drawPath(glass, Color(0xFF344D6A))
+                drawPath(glass, blueprintInk.copy(alpha = .55f), style = Stroke(1.5f))
             }
 
             val cabinLine = blueprintInk.copy(alpha = .38f)
-            drawLine(cabinLine, Offset(180f, 148f), Offset(180f, 395f), 1.5f)
-            drawLine(cabinLine, Offset(73f, 263f), Offset(287f, 263f), 1.5f)
-            drawCircle(blueprintInk, radius = 11f, center = Offset(115f, 149f), style = Stroke(2f))
-            drawLine(blueprintInk, Offset(106f, 149f), Offset(124f, 149f), 1.5f)
-            drawLine(blueprintInk.copy(alpha = .6f), Offset(74f, 451f), Offset(286f, 451f), 1.5f)
-            for (x in listOf(65f, 249f)) {
-                drawRoundRect(Color(0xFFC8E7FF), Offset(x, 47f), Size(46f, 8f), CornerRadius(2f))
-                drawRoundRect(Color(0xFFEB849E), Offset(x, 466f), Size(46f, 8f), CornerRadius(2f))
-            }
+            drawLine(cabinLine, Offset(313f, 512f), Offset(551f, 512f), 1.5f)
+            drawLine(cabinLine, Offset(407f, 430f), Offset(407f, 594f), 1.5f)
+            drawCircle(blueprintInk, radius = 10f, center = Offset(314f, 556f), style = Stroke(2f))
+            drawLine(blueprintInk, Offset(314f, 548f), Offset(314f, 564f), 1.5f)
         }
     }
 }
