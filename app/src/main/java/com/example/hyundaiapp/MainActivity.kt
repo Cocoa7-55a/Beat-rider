@@ -38,6 +38,7 @@ internal val seatColors = listOf(Color(0xFFFFC857), Color(0xFF72DDF7), Color(0xF
 private val navy = Color(0xFF101629)
 
 class MainActivity : ComponentActivity() {
+    private var pickingSong by mutableStateOf(true)
     private val game = RhythmGame { android.util.Log.i("FamilyBeat", it) }
     private lateinit var inputs: VehicleInputs
     private var tone: ToneGenerator? = null
@@ -129,25 +130,59 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() { inputs.close(); audioManager.abandonAudioFocusRequest(focusRequest); tone?.release(); melody.release(); super.onDestroy() }
 
     @Composable private fun Home() {
-        Box(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-            contentAlignment = Alignment.TopCenter
-        ) {
-            BoxWithConstraints(Modifier.widthIn(max = 1040.dp).fillMaxWidth()) {
-                if (maxWidth >= 760.dp) {
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(40.dp),
-                        verticalAlignment = Alignment.CenterVertically
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            Column(
+                Modifier.widthIn(max = 1100.dp).fillMaxWidth().fillMaxHeight(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = pickingSong,
+                        onClick = { pickingSong = true },
+                        label = { Text("1. 곡 선택") }
+                    )
+                    FilterChip(
+                        selected = !pickingSong,
+                        onClick = { pickingSong = false },
+                        label = { Text("2. 자리·게임 설정") }
+                    )
+                }
+                if (pickingSong) {
+                    SongPicker(
+                        selectedSong = game.song,
+                        difficulty = game.difficulty,
+                        onSongSelected = { game.song = it },
+                        onDifficultySelected = { game.difficulty = it },
+                        modifier = Modifier.weight(1f).fillMaxWidth()
+                    )
+                    Button(
+                        onClick = { pickingSong = false },
+                        modifier = Modifier.align(Alignment.End).heightIn(min = 48.dp)
                     ) {
-                        LobbySeatSelection(Modifier.weight(1f))
-                        LobbySettings(Modifier.weight(1f))
+                        Text("자리·게임 설정으로")
                     }
                 } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                        LobbySeatSelection(Modifier.fillMaxWidth())
-                        LobbySettings(Modifier.fillMaxWidth())
-                    }
+                    LobbySetup(Modifier.weight(1f).fillMaxWidth())
+                }
+            }
+        }
+    }
+
+    @Composable private fun LobbySetup(modifier: Modifier) {
+        BoxWithConstraints(modifier.verticalScroll(rememberScrollState())) {
+            if (maxWidth >= 760.dp) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(40.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    LobbySeatSelection(Modifier.weight(1f))
+                    LobbySettings(Modifier.weight(1f))
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                    LobbySeatSelection(Modifier.fillMaxWidth())
+                    LobbySettings(Modifier.fillMaxWidth())
                 }
             }
         }
@@ -177,17 +212,7 @@ class MainActivity : ComponentActivity() {
             Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("연주 설정", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                    Text("1–4명 · ${game.song.bpm} BPM · ${game.song.durationMs / 1000}초 · ${game.song.cues.size}노트", color = Color(0xFFACB8D4))
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("곡 선택", fontWeight = FontWeight.Bold)
-                    RhythmSong.entries.forEach { song ->
-                        FilterChip(
-                            selected = game.song == song,
-                            onClick = { game.song = song },
-                            label = { Text(song.title) }
-                        )
-                    }
+                    Text("${game.song.title} · ${game.difficulty.label} · ${game.song.chart(game.difficulty).size}노트", color = Color(0xFFACB8D4))
                 }
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -312,7 +337,7 @@ class MainActivity : ComponentActivity() {
     @Composable private fun Result() {
         Column(Modifier.fillMaxSize(), verticalArrangement=Arrangement.spacedBy(20.dp), horizontalAlignment=Alignment.CenterHorizontally) {
             Text("우리 가족, 멋진 연주였어요!", fontSize=30.sp, fontWeight=FontWeight.Bold)
-            Text(game.song.title, fontSize = 18.sp)
+            Text("${game.song.title} · ${game.difficulty.label}", fontSize = 18.sp)
             Text("${game.score}", fontSize=64.sp, color=Color(0xFFFFC857))
             Text("함께 맞춘 노트 ${game.hits} / ${game.notes.size}    최고 콤보 ${game.best}", fontSize=22.sp)
             Text(if (game.hits * 4 >= game.notes.size * 3) "환상의 가족 밴드 ★★★" else "다음 연주도 함께해요 ★", fontSize=22.sp)

@@ -92,6 +92,29 @@ class RhythmGameTest {
         assertEquals("result", game.screen)
     }
 
+    @Test fun difficultyChangesChartDensityWithoutChangingMelodyOrDuration() {
+        val song = RhythmSong.TWINKLE
+        assertEquals(listOf(24, 42, 60), ChartDifficulty.entries.map { song.chart(it).size })
+        assertEquals(listOf(16, 32, 48), ChartDifficulty.entries.map { RhythmSong.FAMILY_BEAT.chart(it).size })
+
+        val easy = song.chart(ChartDifficulty.EASY)
+        val normal = song.chart(ChartDifficulty.NORMAL)
+        val hard = song.chart(ChartDifficulty.HARD)
+        assertTrue(normal.containsAll(easy))
+        assertTrue(hard.containsAll(normal))
+        assertEquals(hard.distinct().sorted(), hard)
+        assertTrue(2750L in hard && 2750L !in normal)
+        assertTrue(hard.none { it in 5001L..5999L })
+
+        val game = RhythmGame()
+        game.song = song
+        game.difficulty = ChartDifficulty.HARD
+        game.start(0)
+        assertEquals(hard, game.notes.map { it.time })
+        assertEquals(27000L, game.duration)
+        assertEquals(0, song.cueAt(0)?.semitones)
+    }
+
     @Test fun baselineDuplicatesAndReconnectAreExcluded() {
         val edges = SignalEdges<String>()
         assertFalse(edges.accept("OFF")); assertFalse(edges.accept("OFF"))

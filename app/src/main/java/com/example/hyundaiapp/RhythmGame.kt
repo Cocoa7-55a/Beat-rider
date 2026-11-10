@@ -29,12 +29,13 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
     private var lastBeat = -1L
     val window get() = if (practice) 350L else 220L
     var song by mutableStateOf(RhythmSong.FAMILY_BEAT)
+    var difficulty by mutableStateOf(ChartDifficulty.NORMAL)
     val duration get() = song.durationMs
     fun start(now: Long) {
         val seats = active.indices.filter { active[it] }
         if (seats.isEmpty()) return
-        notes = song.cues.mapIndexed { index, cue ->
-            BeatNote(seats[index % seats.size], song.cueTime(cue))
+        notes = song.chart(difficulty).mapIndexed { index, time ->
+            BeatNote(seats[index % seats.size], time)
         }
         pause()
         elapsed = 0; score = 0; combo = 0; best = 0; hits = 0
