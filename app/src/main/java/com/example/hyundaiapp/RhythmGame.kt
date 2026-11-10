@@ -28,11 +28,14 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
     private var segmentStart = 0L
     private var lastBeat = -1L
     val window get() = if (practice) 350L else 220L
-    val duration = 19000L
+    var song by mutableStateOf(RhythmSong.FAMILY_BEAT)
+    val duration get() = song.durationMs
     fun start(now: Long) {
         val seats = active.indices.filter { active[it] }
         if (seats.isEmpty()) return
-        notes = (0 until 32).map { BeatNote(seats[it % seats.size], 2000L + it * 500L) }
+        notes = song.cues.mapIndexed { index, cue ->
+            BeatNote(seats[index % seats.size], song.cueTime(cue))
+        }
         pause()
         elapsed = 0; score = 0; combo = 0; best = 0; hits = 0
         lastBeat = -1; lastFrame = now; segmentStart = now; running = true; screen = "play"
@@ -61,7 +64,7 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
         }
         if (!running) return
         elapsed += (now - lastFrame).coerceAtLeast(0); lastFrame = now
-        val current = elapsed / 500
+        val current = elapsed / song.beatMs
         if (current != lastBeat) { lastBeat = current; beat() }
         notes.filter { !it.judged && elapsed > it.time + window + offsetMs.coerceAtLeast(0) }.forEach {
             it.judged = true; combo = 0; feedback = "괜찮아요, 다음 박자!"

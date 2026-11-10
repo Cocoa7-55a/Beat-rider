@@ -3,6 +3,7 @@ package com.example.hyundaiapp
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.media.SoundPool
 import android.media.ToneGenerator
 import android.os.Bundle
 import android.os.SystemClock
@@ -28,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.Locale
+import kotlin.math.pow
 import kotlinx.coroutines.delay
 
 internal val seatNames = listOf("운전석", "조수석", "뒷좌석 왼쪽", "뒷좌석 오른쪽")
@@ -39,6 +41,32 @@ class MainActivity : ComponentActivity() {
     private val game = RhythmGame { android.util.Log.i("FamilyBeat", it) }
     private lateinit var inputs: VehicleInputs
     private var tone: ToneGenerator? = null
+    private lateinit var melody: SoundPool
+    private var chimeSample = 0
+    private var melodyStream = 0
+
+    private fun stopGameAudio() {
+        tone?.stopTone()
+        if (melodyStream != 0) {
+            melody.stop(melodyStream)
+            melodyStream = 0
+        }
+    }
+
+    private fun playSongBeat() {
+        if (!audioFocused) return
+        val song = game.song
+        val beat = (game.elapsed / song.beatMs).toInt()
+        if (beat < COUNT_IN_BEATS || song == RhythmSong.FAMILY_BEAT) {
+            val sound = if (beat % 4 == 0) ToneGenerator.TONE_PROP_ACK else ToneGenerator.TONE_PROP_BEEP
+            tone?.startTone(sound, 65)
+            return
+        }
+        val pitch = song.cueAt(beat - COUNT_IN_BEATS)?.semitones ?: return
+        if (melodyStream != 0) melody.stop(melodyStream)
+        melodyStream = melody.play(chimeSample, .75f, .75f, 1, 0, 2.0.pow(pitch / 12.0).toFloat())
+    }
+
     private var audioFocused = false
     private val audioManager by lazy { getSystemService(AudioManager::class.java) }
     private val focusRequest by lazy {
@@ -47,13 +75,18 @@ class MainActivity : ComponentActivity() {
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
             .setOnAudioFocusChangeListener { change ->
                 if (change != AudioManager.AUDIOFOCUS_GAIN) {
-                    audioFocused = false; game.pause(); tone?.stopTone()
+                    audioFocused = false; game.pause(); stopGameAudio()
                 }
             }.build()
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         tone = runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, 45) }.getOrNull()
+        melody = SoundPool.Builder().setMaxStreams(1)
+            .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME)
+                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
+            .build()
+        chimeSample = melody.load(this, R.raw.chime_c4, 1)
         inputs = VehicleInputs(this, { seat, time -> game.hit(seat, time, true) }, { game.pause() })
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(background = navy, surface = Color(0xFF1D2640), primary = Color(0xFF72DDF7))) {
@@ -62,15 +95,13 @@ class MainActivity : ComponentActivity() {
                         audioFocused = audioManager.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
                         if (!audioFocused) game.pause()
                     } else {
-                        tone?.stopTone(); audioFocused = false
+                        stopGameAudio(); audioFocused = false
                         audioManager.abandonAudioFocusRequest(focusRequest)
                     }
                 }
                 LaunchedEffect(Unit) {
                     while (true) {
-                        game.tick(SystemClock.elapsedRealtime()) {
-                            if (audioFocused) tone?.startTone(if ((game.elapsed / 500) % 4 == 0L) ToneGenerator.TONE_PROP_ACK else ToneGenerator.TONE_PROP_BEEP, 65)
-                        }
+                        game.tick(SystemClock.elapsedRealtime(), ::playSongBeat)
                         delay(16)
                     }
                 }
@@ -94,8 +125,8 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-    override fun onPause() { game.pause(); tone?.stopTone(); super.onPause() }
-    override fun onDestroy() { inputs.close(); audioManager.abandonAudioFocusRequest(focusRequest); tone?.release(); super.onDestroy() }
+    override fun onPause() { game.pause(); stopGameAudio(); super.onPause() }
+    override fun onDestroy() { inputs.close(); audioManager.abandonAudioFocusRequest(focusRequest); tone?.release(); melody.release(); super.onDestroy() }
 
     @Composable private fun Home() {
         Box(
@@ -146,7 +177,17 @@ class MainActivity : ComponentActivity() {
             Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("연주 설정", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                    Text("1–4명 · 120 BPM · 19초", color = Color(0xFFACB8D4))
+                    Text("1–4명 · ${game.song.bpm} BPM · ${game.song.durationMs / 1000}초 · ${game.song.cues.size}노트", color = Color(0xFFACB8D4))
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("곡 선택", fontWeight = FontWeight.Bold)
+                    RhythmSong.entries.forEach { song ->
+                        FilterChip(
+                            selected = game.song == song,
+                            onClick = { game.song = song },
+                            label = { Text(song.title) }
+                        )
+                    }
                 }
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -271,9 +312,10 @@ class MainActivity : ComponentActivity() {
     @Composable private fun Result() {
         Column(Modifier.fillMaxSize(), verticalArrangement=Arrangement.spacedBy(20.dp), horizontalAlignment=Alignment.CenterHorizontally) {
             Text("우리 가족, 멋진 연주였어요!", fontSize=30.sp, fontWeight=FontWeight.Bold)
+            Text(game.song.title, fontSize = 18.sp)
             Text("${game.score}", fontSize=64.sp, color=Color(0xFFFFC857))
             Text("함께 맞춘 노트 ${game.hits} / ${game.notes.size}    최고 콤보 ${game.best}", fontSize=22.sp)
-            Text(if(game.hits >= 24) "환상의 가족 밴드 ★★★" else "다음 연주도 함께해요 ★", fontSize=22.sp)
+            Text(if (game.hits * 4 >= game.notes.size * 3) "환상의 가족 밴드 ★★★" else "다음 연주도 함께해요 ★", fontSize=22.sp)
             Button(onClick={game.screen="home"}) { Text("다시 모이기") }
         }
     }

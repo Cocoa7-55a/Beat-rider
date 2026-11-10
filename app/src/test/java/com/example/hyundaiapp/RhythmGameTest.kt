@@ -75,6 +75,23 @@ class RhythmGameTest {
         val game = RhythmGame(); repeat(3) { game.active[it] = false }; game.start(0)
         assertTrue(game.notes.all { it.seat == 3 })
     }
+    @Test fun twinkleChartsOnlyMelodyOnsetsAndUsesItsOwnEndTime() {
+        val song = RhythmSong.TWINKLE
+        val game = RhythmGame()
+        game.song = song
+        game.start(0)
+
+        assertEquals(42, game.notes.size)
+        assertEquals(listOf(0, 0, 7, 7, 9, 9, 7), song.cues.take(7).map { it.semitones })
+        assertEquals(listOf(2000L, 2500L, 3000L, 3500L, 4000L, 4500L, 5000L, 6000L), game.notes.take(8).map { it.time })
+        assertNull(song.cueAt(7))
+        assertEquals(listOf(0, 1, 2, 3, 0, 1, 2, 3), game.notes.take(8).map { it.seat })
+        game.tick(19000) {}
+        assertEquals("play", game.screen)
+        game.tick(27000) {}
+        assertEquals("result", game.screen)
+    }
+
     @Test fun baselineDuplicatesAndReconnectAreExcluded() {
         val edges = SignalEdges<String>()
         assertFalse(edges.accept("OFF")); assertFalse(edges.accept("OFF"))
