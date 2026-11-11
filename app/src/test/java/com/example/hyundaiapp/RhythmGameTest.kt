@@ -6,11 +6,11 @@ import org.junit.Test
 class RhythmGameTest {
     @Test fun allSeatsShareScoreAndDuplicateCannotScoreTwice() {
         val game = RhythmGame(); game.start(1000)
-        repeat(32) { n ->
-            val time = 3000L + n * 500
+        game.notes.forEachIndexed { index, note ->
+            val time = 1000L + note.time
             game.tick(time) {}
-            game.hit(n % 4, time, n % 2 == 0)
-            game.hit(n % 4, time)
+            game.hit(note.seat, time, vehicle = index % 2 == 0)
+            game.hit(note.seat, time)
         }
         game.tick(20000) {}
         assertEquals(3200, game.score); assertEquals(32, game.best)
@@ -85,7 +85,7 @@ class RhythmGameTest {
         assertEquals(listOf(0, 0, 7, 7, 9, 9, 7), song.cues.take(7).map { it.semitones })
         assertEquals(listOf(2000L, 2500L, 3000L, 3500L, 4000L, 4500L, 5000L, 6000L), game.notes.take(8).map { it.time })
         assertNull(song.cueAt(7))
-        assertEquals(listOf(0, 1, 2, 3, 0, 1, 2, 3), game.notes.take(8).map { it.seat })
+        assertEquals(listOf(0, 1, 2, 3, 3, 2, 2, 2), game.notes.take(8).map { it.seat })
         game.tick(19000) {}
         assertEquals("play", game.screen)
         game.tick(27000) {}
@@ -113,6 +113,53 @@ class RhythmGameTest {
         assertEquals(hard, game.notes.map { it.time })
         assertEquals(27000L, game.duration)
         assertEquals(0, song.cueAt(0)?.semitones)
+    }
+
+    @Test fun musicalPatternsUseOnlyParticipatingSeatsForEveryChart() {
+        val seatSets = listOf(listOf(3), listOf(0, 3), listOf(0, 2, 3), listOf(0, 1, 2, 3))
+        RhythmSong.entries.forEach { song ->
+            ChartDifficulty.entries.forEach { difficulty ->
+                seatSets.forEach { seats ->
+                    val notes = song.playNotes(difficulty, seats)
+                    assertEquals(song.chart(difficulty), notes.map { it.time })
+                    assertEquals(seats.toSet(), notes.map { it.seat }.toSet())
+                }
+            }
+        }
+        val beat = RhythmSong.FAMILY_BEAT.playNotes(ChartDifficulty.NORMAL, seatSets.last())
+        assertEquals(listOf(0, 2, 1, 0, 3, 1, 2, 3), beat.take(8).map { it.seat })
+        val twinkle = RhythmSong.TWINKLE.playNotes(ChartDifficulty.HARD, seatSets.last())
+        assertEquals(2, twinkle.single { it.time == 2750L }.seat)
+    }
+
+    @Test fun automaticTimingUsesMedianOfDistinctBeatsAndRequiresFiveTaps() {
+        val start = 10000L
+        val trial = TimingTrial(start)
+        assertNull(trial.record(start))
+        val errors = listOf(65L, 78L, 80L, 82L, 220L)
+        errors.forEachIndexed { index, error ->
+            val target = start + trial.beatTime(index)
+            assertEquals(error, trial.record(target + error))
+            assertNull(trial.record(target + error + 1))
+            if (index < 4) assertNull(trial.offset())
+        }
+        assertEquals(5, trial.sampleCount)
+        assertEquals(80L, trial.offset())
+    }
+
+    @Test fun storedTimingOffsetCombinesWithVehicleDelay() {
+        val game = RhythmGame()
+        game.timingOffsetMs = 160
+        game.offsetMs = 200
+        game.start(0)
+        val first = game.notes.first()
+        val second = game.notes[1]
+        game.tick(first.time + 160) {}
+        game.hit(first.seat, first.time + 160)
+        game.tick(second.time + 360) {}
+        game.hit(second.seat, second.time + 360, vehicle = true)
+        assertEquals(200, game.score)
+        assertEquals(2, game.hits)
     }
 
     @Test fun baselineDuplicatesAndReconnectAreExcluded() {

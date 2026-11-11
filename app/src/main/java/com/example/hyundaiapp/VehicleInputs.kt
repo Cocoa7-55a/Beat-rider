@@ -40,7 +40,8 @@ class VehicleInputs(context: Context, val onHit: (Int, Long) -> Unit, val onUnsa
     private val listeners = mutableMapOf<Int, LightStateListener>()
     private val edges = List(4) { SignalEdges<LightState>() }
     private val lastEvent = LongArray(4)
-    private var probing = false
+    var probing by mutableStateOf(false)
+        private set
     private fun main(block: () -> Unit) { handler.post { if (!closed) block() } }
     private fun log(message: String) {
         logs.add(0, message); while (logs.size > 8) logs.removeAt(logs.lastIndex)
@@ -153,5 +154,3 @@ class VehicleInputs(context: Context, val onHit: (Int, Long) -> Unit, val onUnsa
         runCatching { ux?.unregisterListener() }; runCatching { car?.disconnect() }; vehicle.release()
     }
 }
-
-

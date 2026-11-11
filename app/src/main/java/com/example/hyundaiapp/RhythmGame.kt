@@ -8,7 +8,7 @@ internal const val RESUME_LIFT_MS = 250L
 
 data class BeatNote(val seat: Int, val time: Long, var judged: Boolean = false)
 class RhythmGame(private val log: (String) -> Unit = {}) {
-    var screen by mutableStateOf("home")
+    var screen by mutableStateOf("landing")
     var running by mutableStateOf(false)
     var elapsed by mutableLongStateOf(0)
     var score by mutableIntStateOf(0)
@@ -24,6 +24,7 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
     val active = mutableStateListOf(true, true, true, true)
     var notes = listOf<BeatNote>()
     var offsetMs by mutableLongStateOf(0)
+    var timingOffsetMs by mutableLongStateOf(0)
     private var lastFrame = 0L
     private var segmentStart = 0L
     private var lastBeat = -1L
@@ -34,9 +35,7 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
     fun start(now: Long) {
         val seats = active.indices.filter { active[it] }
         if (seats.isEmpty()) return
-        notes = song.chart(difficulty).mapIndexed { index, time ->
-            BeatNote(seats[index % seats.size], time)
-        }
+        notes = song.playNotes(difficulty, seats)
         pause()
         elapsed = 0; score = 0; combo = 0; best = 0; hits = 0
         lastBeat = -1; lastFrame = now; segmentStart = now; running = true; screen = "play"
@@ -67,14 +66,15 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
         elapsed += (now - lastFrame).coerceAtLeast(0); lastFrame = now
         val current = elapsed / song.beatMs
         if (current != lastBeat) { lastBeat = current; beat() }
-        notes.filter { !it.judged && elapsed > it.time + window + offsetMs.coerceAtLeast(0) }.forEach {
+        val latestInputOffset = maxOf(0L, timingOffsetMs, timingOffsetMs + offsetMs)
+        notes.filter { !it.judged && elapsed > it.time + window + latestInputOffset }.forEach {
             it.judged = true; combo = 0; feedback = "괜찮아요, 다음 박자!"
         }
         if (elapsed >= duration) { running = false; screen = "result" }
     }
     fun hit(seat: Int, now: Long, vehicle: Boolean = false) {
         if (!running || seat !in active.indices || !active[seat] || now < segmentStart) return
-        val at = elapsed + (now - lastFrame) - if (vehicle) offsetMs else 0
+        val at = elapsed + (now - lastFrame) - timingOffsetMs - if (vehicle) offsetMs else 0L
         val note = notes.filter { !it.judged && it.seat == seat }.minByOrNull { abs(it.time - at) } ?: return
         val error = abs(note.time - at)
         if (error > window) { feedback = "박자를 기다려요"; return }

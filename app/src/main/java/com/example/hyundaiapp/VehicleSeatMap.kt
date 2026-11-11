@@ -16,6 +16,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.semantics.Role
@@ -46,6 +47,7 @@ internal fun VehicleSeatMap(
                 val centerX = if (seat % 2 == 0) .37f else .63f
                 val centerY = if (seat < 2) .49f else .674f
                 val color = seatColors[seat]
+                val scale = selectionScale(selected)
                 val shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 9.dp, bottomEnd = 9.dp)
                 Column(
                     Modifier.offset(
@@ -53,6 +55,10 @@ internal fun VehicleSeatMap(
                         y = maxHeight * centerY - buttonHeight / 2
                     )
                         .size(buttonWidth, buttonHeight)
+                        .graphicsLayer {
+                            scaleX = scale.value
+                            scaleY = scale.value
+                        }
                         .clip(shape)
                         .background(if (selected) color.copy(alpha = .20f) else Color(0xFF18243A))
                         .border(if (selected) 2.dp else 1.dp, if (selected) color else blueprintInk.copy(alpha = .55f), shape)
