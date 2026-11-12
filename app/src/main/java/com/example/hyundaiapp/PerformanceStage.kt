@@ -6,12 +6,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,6 +25,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
@@ -65,13 +67,13 @@ internal fun PerformanceBackdrop(modifier: Modifier = Modifier) {
 }
 
 @Composable
-internal fun PerformanceStage(game: RhythmGame, seats: List<Int>, modifier: Modifier = Modifier) {
-    val laneForSeat = remember(seats) { IntArray(seatColors.size) { seats.indexOf(it) } }
+internal fun PerformanceStage(game: RhythmGame, lanes: List<Int>, modifier: Modifier = Modifier) {
+    val columnForLane = remember(lanes) { IntArray(seatColors.size) { lanes.indexOf(it) } }
     Box(modifier.clipToBounds()) {
         Spacer(
             Modifier.matchParentSize().drawWithCache {
-                val track = PerspectiveTrack(size, seats.size)
-                val floor = track.surface(0f, seats.size.toFloat())
+                val track = PerspectiveTrack(size, lanes.size)
+                val floor = track.surface(0f, lanes.size.toFloat())
                 val floorShade = Brush.verticalGradient(
                     0f to Color(0x00061022),
                     HorizonFadeFraction to Color(0xA6061022),
@@ -79,14 +81,14 @@ internal fun PerformanceStage(game: RhythmGame, seats: List<Int>, modifier: Modi
                     startY = track.horizonY,
                     endY = track.endY
                 )
-                val laneFills = seats.mapIndexed { lane, seat ->
-                    val tint = seatColors[seat]
+                val laneFills = lanes.mapIndexed { column, lane ->
+                    val tint = seatColors[lane]
                     val brush = Brush.verticalGradient(
                         listOf(tint.copy(alpha = 0f), tint.copy(alpha = .075f)),
                         startY = track.horizonY,
                         endY = track.fadeEndY
                     )
-                    track.surface(lane.toFloat(), lane + 1f) to brush
+                    track.surface(column.toFloat(), column + 1f) to brush
                 }
                 val railInk = Brush.verticalGradient(
                     0f to Color(0x007D94B8),
@@ -101,19 +103,19 @@ internal fun PerformanceStage(game: RhythmGame, seats: List<Int>, modifier: Modi
                     val elapsed = visibleSongTime(game)
                     val travelMs = BASE_NOTE_TRAVEL_MS / game.noteSpeed
                     drawBeatLines(track, elapsed, travelMs, game.song.beatMs)
-                    for (edge in 0..seats.size) {
+                    for (edge in 0..lanes.size) {
                         val boundary = edge.toFloat()
                         drawLine(
                             railInk,
                             track.point(boundary, track.horizonY),
                             track.point(boundary, track.endY),
-                            if (edge == 0 || edge == seats.size) 2.dp.toPx() else 1.dp.toPx()
+                            if (edge == 0 || edge == lanes.size) 2.dp.toPx() else 1.dp.toPx()
                         )
                     }
-                    seats.forEachIndexed { lane, seat ->
-                        drawTarget(track, lane, seatColors[seat])
-                        val judge = game.laneJudge[seat]
-                        flashProgress(game, judge)?.let { drawLaneFlash(track, lane, judgmentColor(judge?.judgment), 1f - it, judge?.judgment == null) }
+                    lanes.forEachIndexed { column, lane ->
+                        drawTarget(track, column, seatColors[lane])
+                        val judge = game.laneJudge[lane]
+                        flashProgress(game, judge)?.let { drawLaneFlash(track, column, judgmentColor(judge?.judgment), 1f - it, judge?.judgment == null) }
                     }
                     for (note in game.notes) {
                         if (note.judged) continue
@@ -121,27 +123,16 @@ internal fun PerformanceStage(game: RhythmGame, seats: List<Int>, modifier: Modi
                         if (progress < 0f) continue
                         val y = track.projectY(progress)
                         if (y > track.endY) continue
-                        val lane = laneForSeat[note.seat]
-                        if (lane >= 0) drawStageNote(track, lane, y, seatColors[note.seat])
+                        val column = columnForLane[note.lane]
+                        if (column >= 0) drawStageNote(track, column, y, seatColors[note.lane])
                     }
                 }
             }
         )
         Row(Modifier.fillMaxWidth(.925f).fillMaxHeight(.85f).align(Alignment.TopCenter)) {
-            seats.forEach { seat ->
+            lanes.forEach { lane ->
                 Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.BottomCenter) {
-                    val judge = game.laneJudge[seat]
-                    val progress = flashProgress(game, judge)
-                    val judgment = judge?.judgment
-                    if (progress != null && judgment != null) {
-                        Text(
-                            judgment.name,
-                            color = judgmentColor(judgment).copy(alpha = 1f - progress),
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Black,
-                            modifier = Modifier.offset(y = (-(26f + 30f * progress)).dp)
-                        )
-                    }
+                    FloatingJudgment(game, game.laneJudge[lane])
                 }
             }
         }
@@ -159,6 +150,27 @@ internal fun PerformanceStage(game: RhythmGame, seats: List<Int>, modifier: Modi
             )
         }
     }
+}
+
+@Composable
+private fun FloatingJudgment(game: RhythmGame, judge: LaneJudge?) {
+    val judgment = judge?.judgment ?: return
+    val visible by remember(game, judge) {
+        derivedStateOf { flashProgress(game, judge) != null }
+    }
+    if (!visible) return
+
+    Text(
+        judgment.name,
+        color = judgmentColor(judgment),
+        fontSize = 20.sp,
+        fontWeight = FontWeight.Black,
+        modifier = Modifier.graphicsLayer {
+            val progress = flashProgress(game, judge) ?: 1f
+            translationY = -(26.dp.toPx() + 30.dp.toPx() * progress)
+            alpha = 1f - progress
+        }
+    )
 }
 
 private fun visibleSongTime(game: RhythmGame): Float {

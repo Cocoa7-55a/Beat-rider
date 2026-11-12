@@ -508,10 +508,12 @@ class MainActivity : ComponentActivity() {
                     enabled = inputs.parked && game.hasReadySeats,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp)
                 ) {
-                    Text("함께 시작", fontSize = 24.sp)
+                    Text(if (game.soloReady) "솔로 시작" else "함께 시작", fontSize = 24.sp)
                 }
                 if (!game.hasReadySeats) {
                     Text("한 자리 이상 준비되면 시작할 수 있어요.", color = RhythmColors.Muted)
+                } else if (game.soloReady) {
+                    Text("운전석 혼자 화면을 터치해 4레인을 연주해요.", color = RhythmColors.Muted)
                 }
                 RhythmButton(
                     primary = false,
@@ -656,24 +658,24 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
-        val seats = game.playingSeats
-        PerformanceStage(game, seats, Modifier.weight(1f).fillMaxWidth())
+        val lanes = game.playingLanes
+        PerformanceStage(game, lanes, Modifier.weight(1f).fillMaxWidth())
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val compact = maxWidth < 720.dp
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 12.dp)) {
-                seats.forEach { seat ->
+                lanes.forEach { lane ->
                     RhythmButton(
                         onClick = {},
-                        onPress = { at -> if (inputs.parked) game.hit(seat, at) },
+                        onPress = { at -> if (inputs.parked) game.hit(lane, at) },
                         enabled = game.running && inputs.parked,
-                        color = lerp(RhythmColors.Panel, seatColors[seat], .68f),
+                        color = lerp(RhythmColors.Panel, seatColors[lane], .68f),
                         textColor = RhythmColors.Ink,
                         overStage = true,
                         modifier = Modifier.weight(1f).heightIn(min = if (compact) 64.dp else 88.dp),
                         contentPadding = PaddingValues(horizontal = if (compact) 4.dp else 12.dp, vertical = 8.dp)
                     ) {
                         Text(
-                            "${seatIcons[seat]} ${seatNames[seat]}",
+                            if (game.isSolo) "${lane + 1} 레인" else "${seatIcons[lane]} ${seatNames[lane]}",
                             fontSize = if (compact) 15.sp else 22.sp,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center
@@ -733,7 +735,11 @@ class MainActivity : ComponentActivity() {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 StaggeredHeading(
-                    if (game.failed) "라이프가 모두 소진됐어요" else "우리 가족, 멋진 연주였어요!",
+                    when {
+                        game.failed -> "라이프가 모두 소진됐어요"
+                        game.isSolo -> "멋진 솔로 연주였어요!"
+                        else -> "우리 가족, 멋진 연주였어요!"
+                    },
                     "${game.song.title} · ${game.difficulty.label}",
                     MaterialTheme.typography.headlineLarge,
                     subtitleStyle = MaterialTheme.typography.titleLarge,
@@ -751,13 +757,17 @@ class MainActivity : ComponentActivity() {
                     Text("만점 ${game.maxScore}", color = RhythmColors.Muted, style = MaterialTheme.typography.titleMedium)
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    ResultMetric("함께 맞춘 노트", "${game.hits} / ${game.notes.size}", Modifier.weight(1f))
+                    ResultMetric(
+                        if (game.isSolo) "맞춘 노트" else "함께 맞춘 노트",
+                        "${game.hits} / ${game.notes.size}",
+                        Modifier.weight(1f)
+                    )
                     ResultMetric("최고 콤보", "${game.best}", Modifier.weight(1f))
                 }
                 JudgmentBreakdown()
                 if (game.hits * 4 >= game.notes.size * 3) {
                     Text(
-                        "환상의 가족 밴드 ★★★",
+                        if (game.isSolo) "멋진 솔로 연주 ★★★" else "환상의 가족 밴드 ★★★",
                         color = RhythmColors.Muted,
                         style = MaterialTheme.typography.titleMedium,
                         textAlign = TextAlign.Center
@@ -766,7 +776,7 @@ class MainActivity : ComponentActivity() {
                 RhythmButton(
                     onClick = ::returnToLobby,
                     modifier = Modifier.widthIn(min = 240.dp).heightIn(min = 64.dp)
-                ) { Text("다시 모이기", fontSize = 20.sp) }
+                ) { Text(if (game.isSolo) "로비로" else "다시 모이기", fontSize = 20.sp) }
             }
         }
     }

@@ -36,8 +36,8 @@ enum class RhythmSong(
 
     fun chart(difficulty: ChartDifficulty): List<Long> = steps(difficulty).map { timeOf(it) }
 
-    internal fun playNotes(difficulty: ChartDifficulty, seats: List<Int>): List<BeatNote> {
-        val laneCount = seats.size
+    internal fun playNotes(difficulty: ChartDifficulty, lanes: List<Int>): List<BeatNote> {
+        val laneCount = lanes.size
         return steps(difficulty).map { step ->
             val beat = step.cue.beat
             val base = baseLane(step.cue, laneCount)
@@ -54,7 +54,7 @@ enum class RhythmSong(
             } else {
                 onsetLane
             }
-            BeatNote(seats[lane], timeOf(step))
+            BeatNote(lanes[lane], timeOf(step))
         }
     }
 

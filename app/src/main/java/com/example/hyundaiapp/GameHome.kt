@@ -35,6 +35,32 @@ import androidx.compose.ui.unit.sp
 
 internal val GameContentMaxWidth = 1280.dp
 
+private object HomeLayout {
+    val WideBreakpoint = 720.dp
+    val VerticalPadding = 28.dp
+    val WidePaneGap = 48.dp
+    val StackedPaneGap = 24.dp
+    val ActionGap = 20.dp
+    val PlayButtonHeight = 72.dp
+    val TimingButtonHeight = 64.dp
+    val PlayLabelSize = 24.sp
+    val TimingLabelSize = 20.sp
+    val ExpandedTitleSize = 80.sp
+    val ExpandedTitleLineHeight = 88.sp
+    const val WidePreviewWeight = 1.12f
+    const val WidePreviewRatio = 1.33f
+    const val StackedPreviewRatio = 1.6f
+}
+
+private object PreviewLayout {
+    val CornerRadius = 14.dp
+    val Padding = 30.dp
+    val LaneGap = 16.dp
+    val TargetGap = 20.dp
+    val TargetHeight = 46.dp
+    val NoteMaxHeight = 21.dp
+}
+
 @Composable
 internal fun GameHome(
     onPlay: () -> Unit,
@@ -43,19 +69,19 @@ internal fun GameHome(
     heading: @Composable () -> Unit
 ) {
     Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), contentAlignment = Alignment.Center) {
-        BoxWithConstraints(Modifier.widthIn(max = GameContentMaxWidth).fillMaxWidth().padding(vertical = 28.dp)) {
-            if (maxWidth >= 720.dp) {
+        BoxWithConstraints(Modifier.widthIn(max = GameContentMaxWidth).fillMaxWidth().padding(vertical = HomeLayout.VerticalPadding)) {
+            if (maxWidth >= HomeLayout.WideBreakpoint) {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(48.dp),
+                    horizontalArrangement = Arrangement.spacedBy(HomeLayout.WidePaneGap),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     HomeActions(onPlay, onTiming, heading, Modifier.weight(1f))
-                    LanePreview(noteSpeed, Modifier.weight(1.12f).aspectRatio(1.33f))
+                    LanePreview(noteSpeed, Modifier.weight(HomeLayout.WidePreviewWeight).aspectRatio(HomeLayout.WidePreviewRatio))
                 }
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(HomeLayout.StackedPaneGap)) {
                     HomeActions(onPlay, onTiming, heading, Modifier.fillMaxWidth())
-                    LanePreview(noteSpeed, Modifier.fillMaxWidth().aspectRatio(1.6f))
+                    LanePreview(noteSpeed, Modifier.fillMaxWidth().aspectRatio(HomeLayout.StackedPreviewRatio))
                 }
             }
         }
@@ -69,17 +95,17 @@ private fun HomeActions(
     heading: @Composable () -> Unit,
     modifier: Modifier
 ) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(20.dp)) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(HomeLayout.ActionGap)) {
         heading()
         RhythmButton(
             onClick = onPlay,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp)
-        ) { Text("곡 선택", fontSize = 24.sp, fontWeight = FontWeight.Bold) }
+            modifier = Modifier.fillMaxWidth().heightIn(min = HomeLayout.PlayButtonHeight)
+        ) { Text("곡 선택", fontSize = HomeLayout.PlayLabelSize, fontWeight = FontWeight.Bold) }
         RhythmButton(
             onClick = onTiming,
             primary = false,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp)
-        ) { Text("타이밍 보정", fontSize = 20.sp) }
+            modifier = Modifier.fillMaxWidth().heightIn(min = HomeLayout.TimingButtonHeight)
+        ) { Text("타이밍 보정", fontSize = HomeLayout.TimingLabelSize) }
     }
 }
 
@@ -94,7 +120,10 @@ internal fun SharedTransitionScope.BrandHeading(
     StaggeredHeading(
         title = "리듬타",
         subtitle = "함께 만드는 우리 가족의 리듬",
-        titleStyle = if (expanded) typography.displayLarge.copy(fontSize = 80.sp, lineHeight = 88.sp)
+        titleStyle = if (expanded) typography.displayLarge.copy(
+            fontSize = HomeLayout.ExpandedTitleSize,
+            lineHeight = HomeLayout.ExpandedTitleLineHeight
+        )
             else typography.headlineLarge,
         titleColor = RhythmColors.Ink,
         subtitleStyle = if (expanded) typography.titleLarge else typography.bodyMedium,
@@ -113,11 +142,11 @@ internal fun SharedTransitionScope.BrandHeading(
 @Composable
 private fun LanePreview(noteSpeed: Float, modifier: Modifier) {
     val song = RhythmSong.FAMILY_BEAT
-    val seats = seatColors.indices
-    val chart = remember { song.playNotes(ChartDifficulty.NORMAL, seats.toList()) }
+    val lanes = seatColors.indices
+    val chart = remember { song.playNotes(ChartDifficulty.NORMAL, lanes.toList()) }
     val startMs = chart.first().time
     val loopMs = chart.last().time - startMs + song.beatMs
-    val hitTimesBySeat = remember(chart) { chart.groupBy({ it.seat }, { it.time - startMs }) }
+    val hitTimesByLane = remember(chart) { chart.groupBy({ it.lane }, { it.time - startMs }) }
     val phase = remember { mutableLongStateOf(song.beatMs / 2) }
     LaunchedEffect(loopMs) {
         val startNanos = withFrameNanos { it }
@@ -129,16 +158,16 @@ private fun LanePreview(noteSpeed: Float, modifier: Modifier) {
     }
 
     val travelMs = BASE_NOTE_TRAVEL_MS / noteSpeed
-    val shape = RoundedCornerShape(14.dp)
+    val shape = RoundedCornerShape(PreviewLayout.CornerRadius)
     Row(
-        modifier.raisedSurface().padding(30.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+        modifier.raisedSurface().padding(PreviewLayout.Padding),
+        horizontalArrangement = Arrangement.spacedBy(PreviewLayout.LaneGap)
     ) {
-        for (seat in seats) {
-            val hitTimes = hitTimesBySeat.getValue(seat)
+        for (lane in lanes) {
+            val hitTimes = hitTimesByLane.getValue(lane)
             Column(
                 Modifier.weight(1f).fillMaxHeight(),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                verticalArrangement = Arrangement.spacedBy(PreviewLayout.TargetGap)
             ) {
                 Canvas(
                     Modifier.weight(1f).fillMaxWidth().clip(shape).background(RhythmColors.Line)
@@ -163,7 +192,7 @@ private fun LanePreview(noteSpeed: Float, modifier: Modifier) {
                         val scale = noteScaleAtDepth(depth)
                         val y = horizonY + (judgmentY - horizonY) * depth
                         val width = size.width * .76f * scale
-                        val height = minOf(21.dp.toPx(), size.height * .12f) * scale
+                        val height = minOf(PreviewLayout.NoteMaxHeight.toPx(), size.height * .12f) * scale
                         drawRoundRect(
                             RhythmColors.Blue.copy(alpha = .62f + .38f * depth),
                             Offset((size.width - width) / 2, y - height / 2),
@@ -173,7 +202,7 @@ private fun LanePreview(noteSpeed: Float, modifier: Modifier) {
                     }
                 }
                 Box(
-                    Modifier.fillMaxWidth().height(46.dp)
+                    Modifier.fillMaxWidth().height(PreviewLayout.TargetHeight)
                         .insetSurface(shape).clip(shape)
                         .drawBehind {
                             val flash = previewHitFlash(hitTimes, phase.longValue, loopMs)

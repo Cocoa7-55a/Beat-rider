@@ -30,7 +30,8 @@ internal fun PlayHud(game: RhythmGame, onPause: () -> Unit) {
     ) {
         Box(Modifier.weight(1f)) {
             PlayGauge(
-                "가족 점수", game.score, game.maxScore, RhythmColors.BlueLight,
+                if (game.isSolo) "솔로 점수" else "가족 점수",
+                game.score, game.maxScore, RhythmColors.BlueLight,
                 Modifier.widthIn(max = 460.dp).fillMaxWidth()
             )
         }

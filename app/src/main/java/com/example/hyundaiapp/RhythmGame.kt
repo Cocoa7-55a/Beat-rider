@@ -5,6 +5,7 @@ import kotlin.math.abs
 
 internal const val RESUME_COUNTDOWN_MS = 3000L
 internal const val RESUME_LIFT_MS = 250L
+private const val DRIVER_SEAT = 0
 internal const val MAX_LIFE = 1000
 internal const val JUDGE_FLASH_MS = 450L
 
@@ -19,7 +20,7 @@ internal enum class Judgment(val points: Int, val lifeCost: Int, val keepsCombo:
 /** 레인에 마지막으로 표시할 판정. [judgment]가 null이면 노트가 없는 곳을 친 것입니다. [atMs]는 곡 시간(elapsed) 기준. */
 internal data class LaneJudge(val judgment: Judgment?, val atMs: Long)
 
-data class BeatNote(val seat: Int, val time: Long, var judged: Boolean = false)
+data class BeatNote(val lane: Int, val time: Long, var judged: Boolean = false)
 class RhythmGame(private val log: (String) -> Unit = {}) {
     var screen by mutableStateOf("landing")
     var running by mutableStateOf(false)
@@ -43,7 +44,10 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
     private val readiness = mutableStateListOf(false, false, false, false)
     val readySeats: List<Boolean> get() = readiness
     val hasReadySeats get() = readiness.any { it }
-    var playingSeats by mutableStateOf(emptyList<Int>())
+    val soloReady get() = readiness[DRIVER_SEAT] && readiness.count { it } == 1
+    var isSolo by mutableStateOf(false)
+        private set
+    var playingLanes by mutableStateOf(emptyList<Int>())
         private set
 
     fun setSeatReady(seat: Int, ready: Boolean) {
@@ -69,8 +73,9 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
     fun start(now: Long) {
         val seats = readiness.indices.filter { readiness[it] }
         if (seats.isEmpty()) return
-        playingSeats = seats
-        notes = song.playNotes(difficulty, playingSeats)
+        isSolo = soloReady
+        playingLanes = if (isSolo) readiness.indices.toList() else seats
+        notes = song.playNotes(difficulty, playingLanes)
         pause()
         elapsed = 0; score = 0; combo = 0; best = 0; hits = 0
         life = MAX_LIFE
@@ -123,7 +128,7 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
         val effectiveElapsed = (elapsed + if (synth) timingOffsetMs else 0L).coerceAtLeast(0L)
         val current = effectiveElapsed / song.beatMs
         if (current != lastBeat) { lastBeat = current; beat() }
-        val latestInputOffset = maxOf(0L, offsetMs)
+        val latestInputOffset = if (isSolo) 0L else maxOf(0L, offsetMs)
         for (note in notes) {
             if (note.judged || elapsed <= note.time + window + latestInputOffset) continue
             judge(note, Judgment.MISS)
@@ -131,14 +136,14 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
         }
         if (elapsed >= duration) finish()
     }
-    fun hit(seat: Int, now: Long, vehicle: Boolean = false) {
-        if (!running || seat !in playingSeats || now < segmentStart) return
+    fun hit(lane: Int, now: Long, vehicle: Boolean = false) {
+        if (!running || lane !in playingLanes || now < segmentStart || (isSolo && vehicle)) return
         val at = elapsed + (now - lastFrame) - if (vehicle) offsetMs else 0L
-        val note = notes.filter { !it.judged && it.seat == seat }.minByOrNull { abs(it.time - at) } ?: return
+        val note = notes.filter { !it.judged && it.lane == lane }.minByOrNull { abs(it.time - at) } ?: return
         val error = abs(note.time - at)
         if (error > window) {
             feedback = "박자를 기다려요"
-            laneJudge[seat] = LaneJudge(null, elapsed)
+            laneJudge[lane] = LaneJudge(null, elapsed)
             return
         }
         val scaledError = error * 220
@@ -149,7 +154,7 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
             else -> Judgment.BAD
         }
         judge(note, judgment)
-        log("HIT seat=$seat source=${if (vehicle) "light" else "touch"} errorMs=$error judgment=$judgment score=$score")
+        log("HIT lane=$lane source=${if (vehicle) "light" else "touch"} errorMs=$error judgment=$judgment score=$score")
     }
 
     private fun judge(note: BeatNote, judgment: Judgment) {
@@ -161,7 +166,7 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
         best = maxOf(best, combo)
         life = (life - judgment.lifeCost).coerceAtLeast(0)
         feedback = judgment.name
-        laneJudge[note.seat] = LaneJudge(judgment, elapsed)
+        laneJudge[note.lane] = LaneJudge(judgment, elapsed)
         if (failed) finish()
     }
 
