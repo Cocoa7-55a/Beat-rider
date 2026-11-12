@@ -53,6 +53,7 @@ private object SongPalette {
 @Composable
 internal fun SongPicker(
     selectedSong: RhythmSong,
+    twinkleAvailable: Boolean,
     difficulty: ChartDifficulty,
     onSongSelected: (RhythmSong) -> Unit,
     onDifficultySelected: (ChartDifficulty) -> Unit,
@@ -62,7 +63,7 @@ internal fun SongPicker(
     BoxWithConstraints(modifier) {
         if (maxWidth >= 620.dp) {
             Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-                SongList(selectedSong, onSongSelected, Modifier.weight(1f).fillMaxHeight())
+                SongList(selectedSong, twinkleAvailable, onSongSelected, Modifier.weight(1f).fillMaxHeight())
                 SongDetails(
                     selectedSong, difficulty, onDifficultySelected, onContinue,
                     Modifier.weight(1.18f).fillMaxHeight().verticalScroll(rememberScrollState())
@@ -73,7 +74,7 @@ internal fun SongPicker(
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                SongList(selectedSong, onSongSelected, Modifier.fillMaxWidth().height(290.dp))
+                SongList(selectedSong, twinkleAvailable, onSongSelected, Modifier.fillMaxWidth().height(290.dp))
                 SongDetails(selectedSong, difficulty, onDifficultySelected, onContinue, Modifier.fillMaxWidth())
             }
         }
@@ -81,7 +82,12 @@ internal fun SongPicker(
 }
 
 @Composable
-private fun SongList(selected: RhythmSong, onSelect: (RhythmSong) -> Unit, modifier: Modifier) {
+private fun SongList(
+    selected: RhythmSong,
+    twinkleAvailable: Boolean,
+    onSelect: (RhythmSong) -> Unit,
+    modifier: Modifier
+) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         StaggeredHeading(
             "곡 목록", "내장곡 ${RhythmSong.entries.size}곡",
@@ -92,6 +98,7 @@ private fun SongList(selected: RhythmSong, onSelect: (RhythmSong) -> Unit, modif
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(RhythmSong.entries, key = { it.name }) { song ->
+                val enabled = song.recordingAsset == null || twinkleAvailable
                 val isSelected = song == selected
                 val scale = selectionScale(isSelected)
                 val shape = RoundedCornerShape(10.dp)
@@ -105,7 +112,7 @@ private fun SongList(selected: RhythmSong, onSelect: (RhythmSong) -> Unit, modif
                         .clip(shape)
                         .background(if (isSelected) SongPalette.accent else SongPalette.row)
                         .focusBorder(shape)
-                        .selectable(isSelected, role = Role.RadioButton, onClick = { onSelect(song) })
+                        .selectable(isSelected, enabled = enabled, role = Role.RadioButton, onClick = { onSelect(song) })
                 ) {
                     if (isSelected) {
                         Canvas(Modifier.matchParentSize()) {
@@ -129,7 +136,7 @@ private fun SongList(selected: RhythmSong, onSelect: (RhythmSong) -> Unit, modif
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(song.title, color = ink, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                             Text(
-                                "${song.bpm} BPM   ${song.durationMs / 1000}초",
+                                if (enabled) "${song.bpm} BPM   ${song.durationMs / 1000}초" else "음원 필요",
                                 color = if (isSelected) ink else SongPalette.label, fontSize = 17.sp
                             )
                         }

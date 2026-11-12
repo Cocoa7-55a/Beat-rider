@@ -3,7 +3,7 @@ package com.example.hyundaiapp
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
-import android.media.SoundPool
+import android.media.MediaPlayer
 import android.media.ToneGenerator
 import android.os.Bundle
 import android.os.SystemClock
@@ -35,7 +35,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.Locale
-import kotlin.math.pow
+import java.io.IOException
 import kotlinx.coroutines.delay
 
 internal val seatNames = listOf("운전석", "조수석", "뒷좌석 왼쪽", "뒷좌석 오른쪽")
@@ -92,44 +92,111 @@ class MainActivity : ComponentActivity() {
     private val game = RhythmGame { android.util.Log.i("FamilyBeat", it) }
     private lateinit var inputs: VehicleInputs
     private var tone: ToneGenerator? = null
-    private lateinit var melody: SoundPool
-    private var chimeSample = 0
-    private var melodyStream = 0
+    private var twinkleAvailable by mutableStateOf(false)
+    private var recording: MediaPlayer? = null
+    private var recordingReady = false
+    private var recordingPlaying = false
+    private var recordingComplete = false
+    private val gameAudioAttributes = AudioAttributes.Builder()
+        .setUsage(AudioAttributes.USAGE_GAME)
+        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+        .build()
+
+    private fun startGame() {
+        if (game.screen != "home" || !inputs.parked) return
+        releaseRecording()
+        val asset = game.song.recordingAsset
+        if (asset != null) {
+            val player = MediaPlayer()
+            recording = player
+            player.setAudioAttributes(gameAudioAttributes)
+            player.setOnPreparedListener { recordingReady = true }
+            player.setOnCompletionListener {
+                recordingComplete = true
+                recordingPlaying = false
+            }
+            player.setOnErrorListener { _, what, extra ->
+                recordingFailed("MediaPlayer error $what/$extra")
+                true
+            }
+            try {
+                assets.openFd(asset).use { player.setDataSource(it) }
+                player.prepareAsync()
+            } catch (error: IOException) {
+                recordingFailed(error.toString())
+                return
+            }
+        }
+        game.start(SystemClock.elapsedRealtime())
+    }
+
+    private fun releaseRecording() {
+        recording?.release()
+        recording = null
+        recordingReady = false
+        recordingPlaying = false
+        recordingComplete = false
+    }
+
+    private fun recordingFailed(message: String) {
+        android.util.Log.w("FamilyBeat", message)
+        releaseRecording()
+        twinkleAvailable = false
+        if (game.screen == "play") returnToLobby()
+        game.song = RhythmSong.FAMILY_BEAT
+        pickingSong = true
+        notice = UiNotice("반짝반짝 작은 별 음원을 열 수 없어요.")
+    }
+
+    private fun recordingPosition(): Long? {
+        val player = recording ?: return null
+        if (!game.running || !audioFocused || game.elapsed < game.song.countInMs || !recordingReady) return null
+        if (recordingComplete) return game.song.musicDurationMs
+        if (!recordingPlaying) {
+            player.start()
+            recordingPlaying = true
+        }
+        return player.currentPosition.toLong()
+    }
 
     private fun stopGameAudio() {
         tone?.stopTone()
-        if (melodyStream != 0) {
-            melody.stop(melodyStream)
-            melodyStream = 0
+        if (recordingPlaying) {
+            recording?.pause()
+            recordingPlaying = false
         }
+    }
+
+    private fun pauseGame() {
+        game.pause()
+        stopGameAudio()
+    }
+
+    private fun returnToLobby() {
+        pauseGame()
+        releaseRecording()
+        game.screen = "home"
     }
 
     private fun playSongBeat() {
         if (!audioFocused) return
         val song = game.song
-        val beat = (game.elapsed / song.beatMs).toInt()
-        if (beat < COUNT_IN_BEATS || song == RhythmSong.FAMILY_BEAT) {
-            val sound = if (beat % 4 == 0) ToneGenerator.TONE_PROP_ACK else ToneGenerator.TONE_PROP_BEEP
-            tone?.startTone(sound, 65)
-            return
-        }
-        val pitch = song.cueAt(beat - COUNT_IN_BEATS)?.semitones ?: return
-        if (melodyStream != 0) melody.stop(melodyStream)
-        melodyStream = melody.play(chimeSample, .75f, .75f, 1, 0, 2.0.pow(pitch / 12.0).toFloat())
+        if (song.recordingAsset != null && game.elapsed >= song.countInMs) return
+        val beat = game.elapsed / song.beatMs
+        val sound = if (beat % 4 == 0L) ToneGenerator.TONE_PROP_ACK else ToneGenerator.TONE_PROP_BEEP
+        tone?.startTone(sound, 65)
     }
 
     private var audioFocused = false
     private val audioManager by lazy { getSystemService(AudioManager::class.java) }
     private val focusRequest by lazy {
         AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-            .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
+            .setAudioAttributes(gameAudioAttributes)
             .setOnAudioFocusChangeListener { change ->
                 if (change != AudioManager.AUDIOFOCUS_GAIN) {
                     audioFocused = false
                     stopCalibrationAudio()
-                    game.pause()
-                    stopGameAudio()
+                    pauseGame()
                 }
             }.build()
     }
@@ -137,18 +204,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         tone = runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, 45) }.getOrNull()
-        melody = SoundPool.Builder().setMaxStreams(1)
-            .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME)
-                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
-            .build()
-        chimeSample = melody.load(this, R.raw.chime_c4, 1)
+        twinkleAvailable = runCatching {
+            assets.openFd(checkNotNull(RhythmSong.TWINKLE.recordingAsset)).close()
+        }.isSuccess
         game.timingOffsetMs = timingPreferences.getLong("offset_ms", 0L)
             .coerceIn(-MAX_TIMING_OFFSET_MS, MAX_TIMING_OFFSET_MS)
         inputs = VehicleInputs(this, { seat, time -> game.hit(seat, time, true) }, {
             if (game.running || game.resumeRemainingMs > 0) {
                 notice = UiNotice("주차 상태가 바뀌어 연주를 멈췄어요.")
             }
-            game.pause()
+            pauseGame()
             stopCalibrationAudio()
         })
         setContent {
@@ -156,15 +221,18 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(game.running) {
                     if (game.running) {
                         audioFocused = audioManager.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-                        if (!audioFocused) game.pause()
+                        if (!audioFocused) pauseGame()
                     } else {
-                        stopGameAudio(); audioFocused = false
+                        stopGameAudio()
+                        if (game.screen == "result") releaseRecording()
+                        audioFocused = false
                         audioManager.abandonAudioFocusRequest(focusRequest)
                     }
                 }
                 LaunchedEffect(Unit) {
                     while (true) {
-                        game.tick(SystemClock.elapsedRealtime(), ::playSongBeat)
+                        val position = recordingPosition()
+                        game.tick(SystemClock.elapsedRealtime(), position, ::playSongBeat)
                         delay(16)
                     }
                 }
@@ -266,11 +334,16 @@ class MainActivity : ComponentActivity() {
     override fun onPause() {
         foreground = false
         stopCalibrationAudio()
-        game.pause()
-        stopGameAudio()
+        pauseGame()
         super.onPause()
     }
-    override fun onDestroy() { inputs.close(); audioManager.abandonAudioFocusRequest(focusRequest); tone?.release(); melody.release(); super.onDestroy() }
+    override fun onDestroy() {
+        inputs.close()
+        audioManager.abandonAudioFocusRequest(focusRequest)
+        tone?.release()
+        releaseRecording()
+        super.onDestroy()
+    }
 
     @OptIn(ExperimentalLayoutApi::class)
     @Composable private fun Home() {
@@ -306,6 +379,7 @@ class MainActivity : ComponentActivity() {
                     if (showSongs) {
                         SongPicker(
                             selectedSong = game.song,
+                            twinkleAvailable = twinkleAvailable,
                             difficulty = game.difficulty,
                             onSongSelected = { game.song = it },
                             onDifficultySelected = { game.difficulty = it },
@@ -388,7 +462,7 @@ class MainActivity : ComponentActivity() {
                     Text("낮은 배속에서는 노트가 화면에 더 일찍 나타나요.", color = Color(0xFFACB8D4))
                 }
                 Button(
-                    onClick = { if (game.screen == "home" && inputs.parked) game.start(SystemClock.elapsedRealtime()) },
+                    onClick = ::startGame,
                     enabled = inputs.parked,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp)
                 ) {
@@ -481,33 +555,41 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable private fun ColumnScope.Play() {
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                "가족 점수 ${game.score}    ${game.combo} COMBO",
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                "${(game.duration - game.elapsed).coerceAtLeast(0) / 1000}초",
-                style = MaterialTheme.typography.headlineSmall
-            )
-        }
+        PlayHud(game, onPause = ::pauseGame)
         val preparingResume = game.resumeRemainingMs > 0
         val message = when {
             preparingResume -> "곧 연주를 이어갑니다"
             game.running -> game.feedback
             else -> "일시정지 · 주차 확인 후 이어가기를 눌러 주세요"
         }
-        AnimatedContent(
-            targetState = message,
-            transitionSpec = { uiFade() },
-            label = "Judgment feedback fade"
-        ) { feedback -> Text(feedback, color = Color(0xFFFFC857), style = MaterialTheme.typography.titleMedium) }
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AnimatedContent(
+                targetState = message,
+                modifier = Modifier.weight(1f),
+                transitionSpec = { uiFade() },
+                label = "Judgment feedback fade"
+            ) { feedback ->
+                val color = when (feedback) {
+                    "PERFECT" -> Color(0xFFFFC857)
+                    "GREAT" -> Color(0xFF72DDF7)
+                    "GOOD" -> Color(0xFFB79CFF)
+                    "BAD", "MISS" -> Color(0xFFFF8DA1)
+                    else -> Color(0xFFACB8D4)
+                }
+                Text(feedback, color = color, style = MaterialTheme.typography.titleLarge)
+            }
+            if (game.combo > 0) {
+                Text("${game.combo} COMBO", color = Color(0xFFFFC857), style = MaterialTheme.typography.titleLarge)
+            }
+            Text(
+                "${(game.duration - game.elapsed).coerceAtLeast(0) / 1000}초",
+                style = MaterialTheme.typography.titleMedium
+            )
+        }
         val seats = game.active.indices.filter { game.active[it] }
         Box(Modifier.weight(1f).fillMaxWidth().background(Color(0xFF171F35), RoundedCornerShape(16.dp))) {
             Canvas(Modifier.fillMaxSize().clipToBounds()) {
@@ -577,19 +659,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedButton(
-                onClick = { game.pause(); game.screen = "home" },
-                modifier = Modifier.heightIn(min = 54.dp)
-            ) { Text("로비로", fontSize = 17.sp) }
-            OutlinedButton(
-                onClick = { game.pause() },
-                enabled = game.running,
-                modifier = Modifier.heightIn(min = 54.dp)
-            ) {
-                Text(if (preparingResume) "재개 준비 중" else "잠깐 쉬기", fontSize = 17.sp)
-            }
-        }
+        OutlinedButton(
+            onClick = ::returnToLobby,
+            modifier = Modifier.heightIn(min = 54.dp)
+        ) { Text("로비로", fontSize = 17.sp) }
     }
 
     @Composable private fun PauseDialog() {
@@ -616,7 +689,7 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp)
                     ) { Text("이어가기", fontSize = 18.sp) }
                     OutlinedButton(
-                        onClick = { game.pause(); game.screen = "home" },
+                        onClick = ::returnToLobby,
                         modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp)
                     ) { Text("로비로", fontSize = 18.sp) }
                 }
@@ -630,12 +703,16 @@ class MainActivity : ComponentActivity() {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             StaggeredHeading(
-                "우리 가족, 멋진 연주였어요!", "${game.song.title} · ${game.difficulty.label}",
+                if (game.failed) "라이프가 모두 소진됐어요" else "우리 가족, 멋진 연주였어요!",
+                "${game.song.title} · ${game.difficulty.label}",
                 MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
                 subtitleStyle = MaterialTheme.typography.titleLarge,
                 horizontalAlignment = Alignment.CenterHorizontally
             )
-            Text("${game.score}", fontSize = 84.sp, lineHeight = 92.sp, color = Color(0xFFFFC857))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("${game.score}", fontSize = 84.sp, lineHeight = 92.sp, color = Color(0xFFFFC857))
+                Text("만점 ${game.maxScore}", style = MaterialTheme.typography.titleLarge)
+            }
             Text(
                 "함께 맞춘 노트 ${game.hits} / ${game.notes.size}    최고 콤보 ${game.best}",
                 style = MaterialTheme.typography.headlineSmall,

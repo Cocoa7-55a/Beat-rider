@@ -13,7 +13,7 @@ class RhythmGameTest {
             game.hit(note.seat, time)
         }
         game.tick(20000) {}
-        assertEquals(3200, game.score); assertEquals(32, game.best)
+        assertEquals(3200, game.maxScore); assertEquals(game.maxScore, game.score); assertEquals(32, game.best)
         assertEquals("result", game.screen)
     }
     @Test fun countdownFreezesSongAndRejectsInputsUntilResumed() {
@@ -75,26 +75,44 @@ class RhythmGameTest {
         val game = RhythmGame(); repeat(3) { game.active[it] = false }; game.start(0)
         assertTrue(game.notes.all { it.seat == 3 })
     }
-    @Test fun twinkleChartsOnlyMelodyOnsetsAndUsesItsOwnEndTime() {
+    @Test fun twinkleChartFollowsRecordedMelodyAndPlaybackClock() {
         val song = RhythmSong.TWINKLE
         val game = RhythmGame()
         game.song = song
+        game.practice = true
         game.start(0)
 
-        assertEquals(42, game.notes.size)
+        assertEquals(100, song.bpm)
+        assertEquals(140, game.notes.size)
         assertEquals(listOf(0, 0, 7, 7, 9, 9, 7), song.cues.take(7).map { it.semitones })
-        assertEquals(listOf(2000L, 2500L, 3000L, 3500L, 4000L, 4500L, 5000L, 6000L), game.notes.take(8).map { it.time })
-        assertNull(song.cueAt(7))
+        assertEquals(listOf(4200L, 4800L, 5400L, 6000L, 6600L, 7200L, 7800L, 9000L), game.notes.take(8).map { it.time })
         assertEquals(listOf(0, 1, 2, 3, 3, 2, 2, 2), game.notes.take(8).map { it.seat })
-        game.tick(19000) {}
+        assertTrue(listOf(33000L, 61800L, 90600L, 99000L).all { time -> game.notes.any { it.time == time } })
+
+        game.tick(4000) {}
+        assertEquals(2400L, game.elapsed)
+        game.tick(6500, recordingPositionMs = 1800) {}
+        assertEquals(4200L, game.elapsed)
+        game.hit(game.notes.first().seat, 6500)
+        assertEquals(100, game.score)
+        game.pause()
+        game.resume(7000)
+        game.tick(10_249, recordingPositionMs = 1800) {}
+        assertEquals(4200L, game.elapsed)
+        game.tick(10_250) {}
+        game.tick(10_300, recordingPositionMs = 1840) {}
+        assertEquals(4240L, game.elapsed)
+
+        game.tick(120_000, recordingPositionMs = song.musicDurationMs - 1) {}
         assertEquals("play", game.screen)
-        game.tick(27000) {}
+        game.tick(120_020, recordingPositionMs = song.musicDurationMs) {}
+        assertEquals(111_331L, game.duration)
         assertEquals("result", game.screen)
     }
 
-    @Test fun difficultyChangesChartDensityWithoutChangingMelodyOrDuration() {
+    @Test fun difficultyAddsNotesOnMeasuredPercussionInTheRecordedTrack() {
         val song = RhythmSong.TWINKLE
-        assertEquals(listOf(24, 42, 60), ChartDifficulty.entries.map { song.chart(it).size })
+        assertEquals(listOf(80, 140, 176), ChartDifficulty.entries.map { song.chart(it).size })
         assertEquals(listOf(16, 32, 48), ChartDifficulty.entries.map { RhythmSong.FAMILY_BEAT.chart(it).size })
 
         val easy = song.chart(ChartDifficulty.EASY)
@@ -103,16 +121,48 @@ class RhythmGameTest {
         assertTrue(normal.containsAll(easy))
         assertTrue(hard.containsAll(normal))
         assertEquals(hard.distinct().sorted(), hard)
-        assertTrue(2750L in hard && 2750L !in normal)
-        assertTrue(hard.none { it in 5001L..5999L })
+        val accents = hard - normal.toSet()
+        assertTrue(24900L in accents && 72900L in accents)
+        assertTrue(accents.all { it in 23400L..61800L || it in 71400L..90600L })
+        assertTrue(hard.last() < song.durationMs)
+    }
 
+    @Test fun gradesShareComboScoreAndLifeAcrossTouchAndVehicle() {
         val game = RhythmGame()
-        game.song = song
-        game.difficulty = ChartDifficulty.HARD
         game.start(0)
-        assertEquals(hard, game.notes.map { it.time })
-        assertEquals(27000L, game.duration)
-        assertEquals(0, song.cueAt(0)?.semitones)
+        val errors = listOf(100L, 140L, 180L, 220L)
+        val expected = listOf(Judgment.PERFECT, Judgment.GREAT, Judgment.GOOD, Judgment.BAD)
+        game.notes.take(errors.size).forEachIndexed { index, note ->
+            val time = note.time + errors[index]
+            game.tick(time) {}
+            game.hit(note.seat, time, vehicle = index % 2 == 0)
+            assertEquals(expected[index].name, game.feedback)
+            assertEquals(listOf(1, 2, 0, 0)[index], game.combo)
+            assertEquals(listOf(1000, 1000, 1000, 950)[index], game.life)
+            assertEquals(listOf(100, 180, 230, 250)[index], game.score)
+        }
+        game.tick(game.notes[4].time + 221L) {}
+        assertEquals("MISS", game.feedback)
+        assertEquals(850, game.life)
+        assertEquals(2, game.best)
+    }
+
+    @Test fun emptyLifeEndsStandardPlayAndResetsOnNewGame() {
+        val game = RhythmGame()
+        game.start(0)
+        game.tick(game.notes[9].time + 221L) {}
+        assertEquals(0, game.life)
+        assertTrue(game.failed)
+        assertFalse(game.running)
+        assertEquals("result", game.screen)
+
+        game.practice = true
+        game.start(0)
+        assertEquals(MAX_LIFE, game.life)
+        game.tick(game.notes[9].time + 351L) {}
+        assertEquals(0, game.life)
+        assertTrue(game.running)
+        assertEquals("play", game.screen)
     }
 
     @Test fun musicalPatternsUseOnlyParticipatingSeatsForEveryChart() {
@@ -129,7 +179,7 @@ class RhythmGameTest {
         val beat = RhythmSong.FAMILY_BEAT.playNotes(ChartDifficulty.NORMAL, seatSets.last())
         assertEquals(listOf(0, 2, 1, 0, 3, 1, 2, 3), beat.take(8).map { it.seat })
         val twinkle = RhythmSong.TWINKLE.playNotes(ChartDifficulty.HARD, seatSets.last())
-        assertEquals(2, twinkle.single { it.time == 2750L }.seat)
+        assertEquals(3, twinkle.single { it.time == 24900L }.seat)
     }
 
     @Test fun automaticTimingUsesMedianOfDistinctBeatsAndRequiresFiveTaps() {

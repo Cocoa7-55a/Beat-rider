@@ -5,6 +5,15 @@ import kotlin.math.abs
 
 internal const val RESUME_COUNTDOWN_MS = 3000L
 internal const val RESUME_LIFT_MS = 250L
+internal const val MAX_LIFE = 1000
+
+internal enum class Judgment(val points: Int, val lifeCost: Int, val keepsCombo: Boolean) {
+    PERFECT(100, 0, true),
+    GREAT(80, 0, true),
+    GOOD(50, 0, false),
+    BAD(20, 50, false),
+    MISS(0, 100, false)
+}
 
 data class BeatNote(val seat: Int, val time: Long, var judged: Boolean = false)
 class RhythmGame(private val log: (String) -> Unit = {}) {
@@ -12,10 +21,16 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
     var running by mutableStateOf(false)
     var elapsed by mutableLongStateOf(0)
     var score by mutableIntStateOf(0)
+        private set
+    var life by mutableIntStateOf(MAX_LIFE)
+        private set
+    val maxScore get() = notes.size * Judgment.PERFECT.points
+    val failed get() = life == 0 && !practice
     var combo by mutableIntStateOf(0)
     var best by mutableIntStateOf(0)
     var hits by mutableIntStateOf(0)
     var feedback by mutableStateOf("함께 박자를 맞춰요")
+        private set
     var practice by mutableStateOf(false)
     var noteSpeed by mutableFloatStateOf(1f)
     var resumeRemainingMs by mutableLongStateOf(0L)
@@ -38,6 +53,7 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
         notes = song.playNotes(difficulty, seats)
         pause()
         elapsed = 0; score = 0; combo = 0; best = 0; hits = 0
+        life = MAX_LIFE
         lastBeat = -1; lastFrame = now; segmentStart = now; running = true; screen = "play"
         feedback = "준비! 4박자 후 시작"
     }
@@ -52,7 +68,7 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
         resumeAt = now + resumeRemainingMs
     }
 
-    fun tick(now: Long, beat: () -> Unit) {
+    fun tick(now: Long, recordingPositionMs: Long? = null, beat: () -> Unit) {
         if (resumeRemainingMs > 0) {
             resumeRemainingMs = (resumeAt - now).coerceAtLeast(0)
             if (resumeRemainingMs == 0L) {
@@ -63,24 +79,57 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
             return
         }
         if (!running) return
-        elapsed += (now - lastFrame).coerceAtLeast(0); lastFrame = now
+        val frameDelta = (now - lastFrame).coerceAtLeast(0)
+        elapsed = when {
+            song.recordingAsset == null -> elapsed + frameDelta
+            recordingPositionMs != null -> maxOf(elapsed, song.countInMs + recordingPositionMs).coerceAtMost(duration)
+            elapsed < song.countInMs -> (elapsed + frameDelta).coerceAtMost(song.countInMs)
+            else -> elapsed
+        }
+        lastFrame = now
         val current = elapsed / song.beatMs
         if (current != lastBeat) { lastBeat = current; beat() }
         val latestInputOffset = maxOf(0L, timingOffsetMs, timingOffsetMs + offsetMs)
-        notes.filter { !it.judged && elapsed > it.time + window + latestInputOffset }.forEach {
-            it.judged = true; combo = 0; feedback = "괜찮아요, 다음 박자!"
+        for (note in notes) {
+            if (note.judged || elapsed <= note.time + window + latestInputOffset) continue
+            judge(note, Judgment.MISS)
+            if (failed) return
         }
-        if (elapsed >= duration) { running = false; screen = "result" }
+        if (elapsed >= duration) finish()
     }
     fun hit(seat: Int, now: Long, vehicle: Boolean = false) {
         if (!running || seat !in active.indices || !active[seat] || now < segmentStart) return
         val at = elapsed + (now - lastFrame) - timingOffsetMs - if (vehicle) offsetMs else 0L
         val note = notes.filter { !it.judged && it.seat == seat }.minByOrNull { abs(it.time - at) } ?: return
         val error = abs(note.time - at)
-        if (error > window) { feedback = "박자를 기다려요"; return }
-        note.judged = true; hits++; combo++; best = maxOf(best, combo)
-        score += if (error <= 100) 100 else 60
-        feedback = if (error <= 100) "PERFECT · 함께 $combo 콤보!" else "GOOD · 함께 $combo 콤보!"
-        log("HIT seat=$seat source=${if(vehicle) "light" else "touch"} errorMs=$error score=$score")
+        if (error > window) {
+            feedback = "박자를 기다려요"
+            return
+        }
+        val scaledError = error * 220
+        val judgment = when {
+            scaledError <= 100 * window -> Judgment.PERFECT
+            scaledError <= 140 * window -> Judgment.GREAT
+            scaledError <= 180 * window -> Judgment.GOOD
+            else -> Judgment.BAD
+        }
+        judge(note, judgment)
+        log("HIT seat=$seat source=${if (vehicle) "light" else "touch"} errorMs=$error judgment=$judgment score=$score")
+    }
+
+    private fun judge(note: BeatNote, judgment: Judgment) {
+        note.judged = true
+        if (judgment != Judgment.MISS) hits++
+        score += judgment.points
+        combo = if (judgment.keepsCombo) combo + 1 else 0
+        best = maxOf(best, combo)
+        life = (life - judgment.lifeCost).coerceAtLeast(0)
+        feedback = judgment.name
+        if (failed) finish()
+    }
+
+    private fun finish() {
+        pause()
+        screen = "result"
     }
 }

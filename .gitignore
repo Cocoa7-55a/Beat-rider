@@ -17,3 +17,6 @@ local.properties
 .idea/
 .kotlin/
 **/build/
+
+# Local copy of the Pixabay recording
+/app/src/main/assets/twinkle_twinkle.mp3
