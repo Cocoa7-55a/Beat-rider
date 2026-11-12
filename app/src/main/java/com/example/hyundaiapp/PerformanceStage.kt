@@ -160,9 +160,10 @@ internal fun PerformanceStage(game: RhythmGame, seats: List<Int>, modifier: Modi
             Text(
                 text = ((countdown + 999) / 1000).toString(),
                 modifier = Modifier.align(Alignment.Center)
-                    .raisedSurface(RoundedCornerShape(28.dp), overStage = true)
+                    .raisedSurface(RoundedCornerShape(28.dp), RhythmColors.Ink)
                     .padding(horizontal = 36.dp, vertical = 10.dp),
-                color = RhythmColors.Blue,
+                color = androidx.compose.ui.graphics.Color.White,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                 fontSize = 76.sp,
                 fontWeight = FontWeight.Bold
             )

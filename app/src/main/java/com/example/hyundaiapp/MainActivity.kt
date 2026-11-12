@@ -362,8 +362,10 @@ class MainActivity : ComponentActivity() {
                         primary = false,
                         modifier = Modifier.heightIn(min = 52.dp)
                     ) { Text("홈으로", fontSize = 17.sp) }
-                    RhythmTab(pickingSong, "1. 곡 선택") { pickingSong = true }
-                    RhythmTab(!pickingSong, "2. 자리·게임 설정") { pickingSong = false }
+                    RhythmSegmented(
+                        listOf("1. 곡 선택", "2. 자리·게임 설정"), if (pickingSong) 0 else 1,
+                        { pickingSong = it == 0 }, Modifier.widthIn(max = 460.dp).fillMaxWidth()
+                    )
                 }
                 AnimatedContent(
                     targetState = pickingSong,
@@ -586,7 +588,7 @@ class MainActivity : ComponentActivity() {
                 Text(feedback, color = color, style = MaterialTheme.typography.titleLarge)
             }
             if (game.combo > 0) {
-                Text("${game.combo} COMBO", color = Color(0xFFFFC857), style = MaterialTheme.typography.titleLarge)
+                RollingNumber("${game.combo} COMBO", style = MaterialTheme.typography.titleLarge, color = Color(0xFFFFC857))
             }
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
@@ -685,7 +687,14 @@ class MainActivity : ComponentActivity() {
                     horizontalAlignment = Alignment.CenterHorizontally
                 )
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("${game.score}", fontSize = 84.sp, lineHeight = 92.sp, color = RhythmColors.Blue, fontWeight = FontWeight.Bold)
+                    val shownScore = remember { androidx.compose.animation.core.Animatable(0f) }
+                    LaunchedEffect(game.score) {
+                        shownScore.animateTo(game.score.toFloat(), androidx.compose.animation.core.tween(900))
+                    }
+                    Text(
+                        "${shownScore.value.toInt()}", fontSize = 84.sp, lineHeight = 92.sp, color = RhythmColors.Ink,
+                        fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                    )
                     Text("만점 ${game.maxScore}", color = RhythmColors.Muted, style = MaterialTheme.typography.titleMedium)
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {

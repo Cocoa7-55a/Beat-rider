@@ -6,23 +6,27 @@ import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -86,7 +90,7 @@ internal fun SharedTransitionScope.BrandHeading(
         subtitle = "함께 만드는 우리 가족의 리듬",
         titleStyle = if (expanded) typography.displayLarge.copy(fontSize = 80.sp, lineHeight = 88.sp)
             else typography.headlineLarge,
-        titleColor = RhythmColors.Blue,
+        titleColor = RhythmColors.Ink,
         subtitleStyle = if (expanded) typography.titleLarge else typography.bodyMedium,
         modifier = Modifier.sharedBounds(
             sharedContentState = rememberSharedContentState(key = "rhythm-title"),
@@ -100,44 +104,41 @@ internal fun SharedTransitionScope.BrandHeading(
     )
 }
 
+// Weekday-bar tile: one bar is highlighted blue, and the highlight walks on the beat.
 @Composable
 private fun LanePreview(modifier: Modifier) {
-    Column(
-        modifier.raisedSurface().padding(30.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
-    ) {
-        val heights = listOf(.48f, .72f, .36f, .61f)
+    val levels = listOf(.48f, .72f, .36f, .61f)
+    var beat by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(900)
+            beat++
+        }
+    }
+    Column(modifier.raisedSurface().padding(30.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        Text("오늘의 리듬", color = RhythmColors.Muted, fontSize = 17.sp)
         Row(
             Modifier.weight(1f).fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.Bottom
         ) {
-            heights.forEachIndexed { index, level ->
+            levels.forEachIndexed { index, level ->
+                val active = beat % levels.size == index
+                val height by animateFloatAsState(
+                    if (active) 1f else level, spring(dampingRatio = .7f, stiffness = 300f), label = "Bar height"
+                )
+                val color by animateColorAsState(if (active) RhythmColors.Blue else RhythmColors.Line, label = "Bar color")
                 Box(
-                    Modifier.weight(1f).fillMaxHeight().insetSurface(CircleShape).clip(CircleShape),
-                    contentAlignment = Alignment.BottomCenter
-                ) {
-                    Canvas(Modifier.matchParentSize()) {
-                        val width = size.width * .68f
-                        val height = size.height * level
-                        val inset = minOf((size.width - width) / 2, size.height * .15f)
-                        drawRoundRect(
-                            color = if (index % 2 == 0) RhythmColors.BlueLight else RhythmColors.Blue,
-                            topLeft = Offset(inset, size.height - height - inset),
-                            size = Size(width, height),
-                            cornerRadius = CornerRadius(width / 2)
-                        )
-                    }
-                }
+                    Modifier.weight(1f).fillMaxHeight(height.coerceIn(0f, 1f))
+                        .background(color, RoundedCornerShape(14.dp))
+                )
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            heights.indices.forEach { index ->
-                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                    Box(
-                        Modifier.size(46.dp).raisedSurface(CircleShape).padding(10.dp)
-                            .background(if (index % 2 == 0) RhythmColors.BlueLight else RhythmColors.Blue, CircleShape)
-                    )
-                }
+            levels.indices.forEach { index ->
+                val active = beat % levels.size == index
+                val color by animateColorAsState(if (active) RhythmColors.Ink else RhythmColors.Inset, label = "Pad color")
+                Box(Modifier.weight(1f).height(46.dp).insetSurface(RoundedCornerShape(14.dp), color))
             }
         }
     }

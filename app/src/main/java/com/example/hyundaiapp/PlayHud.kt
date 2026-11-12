@@ -1,13 +1,15 @@
 package com.example.hyundaiapp
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -28,7 +30,7 @@ internal fun PlayHud(game: RhythmGame, onPause: () -> Unit) {
     ) {
         Box(Modifier.weight(1f)) {
             PlayGauge(
-                "가족 점수", game.score, game.maxScore, RhythmColors.Blue,
+                "가족 점수", game.score, game.maxScore, RhythmColors.BlueLight,
                 Modifier.widthIn(max = 460.dp).fillMaxWidth()
             )
         }
@@ -63,8 +65,12 @@ internal fun PlayHud(game: RhythmGame, onPause: () -> Unit) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PlayGauge(label: String, value: Int, maximum: Int, color: Color, modifier: Modifier) {
+    // Black hero tile over the stage; the bar eases to each new value.
+    val progress by animateFloatAsState(
+        value.toFloat() / maximum.coerceAtLeast(1), tween(320), label = "Gauge fill"
+    )
     Column(
-        modifier.raisedSurface(RoundedCornerShape(20.dp), overStage = true).padding(horizontal = 14.dp, vertical = 10.dp),
+        modifier.raisedSurface(RoundedCornerShape(20.dp), RhythmColors.Ink).padding(horizontal = 14.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         FlowRow(
@@ -73,13 +79,16 @@ private fun PlayGauge(label: String, value: Int, maximum: Int, color: Color, mod
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(label, style = MaterialTheme.typography.labelLarge, color = color)
-            Text("$value / $maximum", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+            RollingNumber(
+                "$value / $maximum",
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = Color.White
+            )
         }
         LinearProgressIndicator(
-            progress = { value.toFloat() / maximum.coerceAtLeast(1) },
-            modifier = Modifier.fillMaxWidth().height(12.dp).insetSurface(CircleShape),
+            progress = { progress },
+            modifier = Modifier.fillMaxWidth().height(10.dp),
             color = color,
-            trackColor = Color.Transparent,
+            trackColor = Color(0x33FFFFFF),
             gapSize = 0.dp,
             drawStopIndicator = {}
         )

@@ -6,10 +6,13 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.progressSemantics
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Surface
@@ -17,6 +20,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -28,11 +33,17 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
@@ -114,7 +125,7 @@ internal fun DrawnCheckbox(checked: Boolean, enabled: Boolean, onCheckedChange: 
         contentAlignment = Alignment.Center
     ) {
         val shape = RoundedCornerShape(9.dp)
-        Canvas(Modifier.size(26.dp).insetSurface(shape)) {
+        Canvas(Modifier.size(26.dp).background(RhythmColors.Inset, shape)) {
             val outline = 2.dp.toPx()
             val inset = outline / 2
             val corner = CornerRadius(3.dp.toPx())
@@ -208,7 +219,7 @@ internal fun SlideSnackbar(notice: UiNotice?, modifier: Modifier = Modifier) {
     ) { item ->
         if (item != null) Snackbar(
             modifier = Modifier.widthIn(max = 460.dp).fillMaxWidth(),
-            shape = CircleShape
+            shape = RoundedCornerShape(16.dp)
         ) { Text(item.message) }
     }
 }
@@ -228,6 +239,71 @@ internal fun FadeToast(notice: UiNotice?, modifier: Modifier = Modifier) {
             ) {
                 Text(item.message, Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
             }
+        }
+    }
+}
+
+/** Odometer text: each changed character rolls vertically, staggered from the right. */
+@Composable
+internal fun RollingNumber(
+    text: String,
+    modifier: Modifier = Modifier,
+    style: TextStyle = LocalTextStyle.current,
+    color: Color = Color.Unspecified
+) {
+    Row(modifier.clearAndSetSemantics { contentDescription = text }) {
+        text.forEachIndexed { index, char ->
+            val fromEnd = text.length - 1 - index
+            key(fromEnd) {
+                AnimatedContent(
+                    targetState = char,
+                    transitionSpec = {
+                        val slide = tween<IntOffset>(260, fromEnd * 35, EnterEase)
+                        val fade = tween<Float>(200, fromEnd * 35)
+                        val up = targetState > initialState
+                        (slideInVertically(slide) { if (up) it else -it } + fadeIn(fade)) togetherWith
+                            (slideOutVertically(slide) { if (up) -it else it } + fadeOut(fade))
+                    },
+                    label = "Rolling digit"
+                ) { Text(it.toString(), style = style, color = color, fontFamily = FontFamily.Monospace) }
+            }
+        }
+    }
+}
+
+/** Segmented control: gray track with a white pill that slides to the selection. */
+@Composable
+internal fun RhythmSegmented(
+    options: List<String>,
+    selected: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val position by animateFloatAsState(
+        selected.toFloat(), spring(dampingRatio = .8f, stiffness = 500f), label = "Segment pill"
+    )
+    val shape = RoundedCornerShape(16.dp)
+    Row(
+        modifier.background(RhythmColors.Panel, shape).drawBehind {
+            val pad = 4.dp.toPx()
+            val segment = size.width / options.size
+            val corner = CornerRadius(12.dp.toPx())
+            val pill = Size(segment - pad * 2, size.height - pad * 2)
+            drawRoundRect(Color(0x14000000), Offset(segment * position + pad, pad + 1.dp.toPx()), pill, corner)
+            drawRoundRect(Color.White, Offset(segment * position + pad, pad), pill, corner)
+        }.selectableGroup(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        options.forEachIndexed { index, label ->
+            val ink by animateColorAsState(
+                if (index == selected) RhythmColors.Ink else RhythmColors.Muted, label = "Segment ink"
+            )
+            Box(
+                Modifier.weight(1f).heightIn(min = 52.dp).focusRing(shape).clip(shape)
+                    .selectable(index == selected, role = Role.Tab) { onSelect(index) }
+                    .padding(horizontal = 12.dp),
+                contentAlignment = Alignment.Center
+            ) { Text(label, color = ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1) }
         }
     }
 }

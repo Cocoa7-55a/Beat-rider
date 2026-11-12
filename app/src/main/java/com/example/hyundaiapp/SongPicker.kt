@@ -1,6 +1,7 @@
 package com.example.hyundaiapp
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -168,10 +170,15 @@ private fun SongDetails(
                 ChartDifficulty.entries.forEach { level ->
                     val selected = difficulty == level
                     val shape = RoundedCornerShape(22.dp)
-                    val ink = if (selected) RhythmColors.Blue else RhythmColors.Ink
+                    val ink by animateColorAsState(
+                        if (selected) androidx.compose.ui.graphics.Color.White else RhythmColors.Ink, label = "Difficulty ink"
+                    )
+                    val fill by animateColorAsState(
+                        if (selected) RhythmColors.Blue else RhythmColors.Inset, label = "Difficulty fill"
+                    )
                     Column(
                         Modifier.weight(1f).heightIn(min = 82.dp)
-                            .then(if (selected) Modifier.insetSurface(shape, RhythmColors.Selected) else Modifier.raisedSurface(shape))
+                            .insetSurface(shape, fill)
                             .focusRing(shape)
                             .clip(shape)
                             .selectable(selected, role = Role.RadioButton, onClick = { onDifficultySelected(level) })

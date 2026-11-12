@@ -126,7 +126,10 @@ internal fun TimingCalibrationPage(
                     Box(modifier.raisedSurface()) {
                         Column(Modifier.padding(28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             Text("수동 보정", fontSize = 26.sp, fontWeight = FontWeight.Bold)
-                            Text(signedMs(offsetMs), fontSize = 48.sp, lineHeight = 54.sp, color = MaterialTheme.colorScheme.primary)
+                            RollingNumber(
+                                signedMs(offsetMs), color = RhythmColors.Ink,
+                                style = androidx.compose.ui.text.TextStyle(fontSize = 48.sp, lineHeight = 54.sp, fontWeight = FontWeight.Bold)
+                            )
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 listOf(-10L, -1L, 1L, 10L).forEach { step ->
                                     val next = (offsetMs + step).coerceIn(-MAX_TIMING_OFFSET_MS, MAX_TIMING_OFFSET_MS)
