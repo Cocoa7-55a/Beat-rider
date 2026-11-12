@@ -15,7 +15,11 @@ import ai.pleos.playground.vehicle.constant.control.LightState
 import ai.pleos.playground.vehicle.constant.control.VehicleGear
 import ai.pleos.playground.vehicle.listener.LightStateListener
 
-class VehicleInputs(context: Context, val onHit: (Int, Long) -> Unit, val onUnsafe: () -> Unit) {
+class VehicleInputs(
+    context: Context,
+    private val onReadingLightChanged: (Int, LightState, Long) -> Unit,
+    private val onUnsafe: () -> Unit
+) {
     private val handler = Handler(Looper.getMainLooper())
     private val vehicle = Vehicle(context)
     private var car: Car? = null
@@ -126,6 +130,7 @@ class VehicleInputs(context: Context, val onHit: (Int, Long) -> Unit, val onUnsa
                                 val value = state
                                 val received = SystemClock.elapsedRealtime()
                                 main {
+                                    if (listeners[i] !== this) return@main
                                     if (value == null) { edges[i].reset(); verified[i] = false; changed[i] = false; states[i] = "미확인"; return@main }
                                     states[i] = value.toString()
                                     val old = edges[i].previous
@@ -133,10 +138,11 @@ class VehicleInputs(context: Context, val onHit: (Int, Long) -> Unit, val onUnsa
                                     val interval = if (lastEvent[i] == 0L) 0 else received - lastEvent[i]
                                     lastEvent[i] = received; changed[i] = true
                                     log("${values[i]} $old → $value · 수신 $received ms · 간격 $interval ms")
-                                    if (experimental && supported[i] && verified[i] && parked) onHit(i, received)
+                                    if (supported[i] && parked) onReadingLightChanged(i, value, received)
                                 }
                             }
                             override fun onFailed(e: Exception) = main {
+                                if (listeners[i] !== this) return@main
                                 invalidateLight(i)
                                 states[i] = "오류"; log("${values[i]} ${e.message}")
                             }

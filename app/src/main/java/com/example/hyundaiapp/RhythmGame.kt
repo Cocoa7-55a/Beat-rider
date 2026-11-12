@@ -40,7 +40,19 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
     var resumeRemainingMs by mutableLongStateOf(0L)
         private set
     private var resumeAt = 0L
-    val active = mutableStateListOf(true, true, true, true)
+    private val readiness = mutableStateListOf(false, false, false, false)
+    val readySeats: List<Boolean> get() = readiness
+    val hasReadySeats get() = readiness.any { it }
+    var playingSeats by mutableStateOf(emptyList<Int>())
+        private set
+
+    fun setSeatReady(seat: Int, ready: Boolean) {
+        readiness[seat] = ready
+    }
+
+    fun resetReadiness() {
+        readiness.indices.forEach { readiness[it] = false }
+    }
     internal val laneJudge = mutableStateListOf<LaneJudge?>(null, null, null, null)
     /** 판정별 노트 수. [Judgment.ordinal]로 색인합니다. */
     val judgments = mutableStateListOf(0, 0, 0, 0, 0)
@@ -55,9 +67,10 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
     var difficulty by mutableStateOf(ChartDifficulty.NORMAL)
     val duration get() = song.durationMs
     fun start(now: Long) {
-        val seats = active.indices.filter { active[it] }
+        val seats = readiness.indices.filter { readiness[it] }
         if (seats.isEmpty()) return
-        notes = song.playNotes(difficulty, seats)
+        playingSeats = seats
+        notes = song.playNotes(difficulty, playingSeats)
         pause()
         elapsed = 0; score = 0; combo = 0; best = 0; hits = 0
         life = MAX_LIFE
@@ -119,7 +132,7 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
         if (elapsed >= duration) finish()
     }
     fun hit(seat: Int, now: Long, vehicle: Boolean = false) {
-        if (!running || seat !in active.indices || !active[seat] || now < segmentStart) return
+        if (!running || seat !in playingSeats || now < segmentStart) return
         val at = elapsed + (now - lastFrame) - if (vehicle) offsetMs else 0L
         val note = notes.filter { !it.judged && it.seat == seat }.minByOrNull { abs(it.time - at) } ?: return
         val error = abs(note.time - at)

@@ -4,8 +4,42 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RhythmGameTest {
+    private fun readyGame(seats: List<Int> = (0..3).toList()) = RhythmGame().apply {
+        seats.forEach { setSeatReady(it, true) }
+    }
+
+    @Test fun emptyReadinessBlocksStartAndTheLastSeatCanCancel() {
+        val game = RhythmGame()
+        game.screen = "home"
+        assertEquals(listOf(false, false, false, false), game.readySeats)
+        game.start(0)
+        assertEquals("home", game.screen)
+        assertTrue(game.notes.isEmpty())
+
+        game.setSeatReady(2, true)
+        assertTrue(game.hasReadySeats)
+        game.setSeatReady(2, false)
+        assertFalse(game.hasReadySeats)
+        game.start(0)
+        assertFalse(game.running)
+    }
+
+    @Test fun startingSnapshotsTheReadySeatsForTheWholeRound() {
+        val game = readyGame(listOf(1, 3))
+        game.start(0)
+        game.resetReadiness()
+
+        assertFalse(game.hasReadySeats)
+        assertEquals(listOf(1, 3), game.playingSeats)
+        assertEquals(setOf(1, 3), game.notes.map { it.seat }.toSet())
+        val firstNote = game.notes.first()
+        game.tick(firstNote.time) {}
+        game.hit(firstNote.seat, firstNote.time)
+        assertEquals(100, game.score)
+    }
+
     @Test fun allSeatsShareScoreAndDuplicateCannotScoreTwice() {
-        val game = RhythmGame(); game.start(1000)
+        val game = readyGame(); game.start(1000)
         game.notes.forEachIndexed { index, note ->
             val time = 1000L + note.time
             game.tick(time) {}
@@ -18,7 +52,7 @@ class RhythmGameTest {
         assertEquals(listOf(32, 0, 0, 0, 0), game.judgments.toList())
     }
     @Test fun countdownFreezesSongAndRejectsInputsUntilResumed() {
-        val game = RhythmGame()
+        val game = readyGame()
         game.start(0)
         game.tick(1900) {}
         game.pause()
@@ -44,7 +78,7 @@ class RhythmGameTest {
     }
 
     @Test fun pausingAgainCancelsPendingResume() {
-        val game = RhythmGame()
+        val game = readyGame()
         game.start(0)
         game.pause()
         game.resume(1000)
@@ -56,29 +90,29 @@ class RhythmGameTest {
         assertFalse(game.running)
     }
     @Test fun callbackReceiptTimeIsUsedEvenAfterNextFrame() {
-        val game = RhythmGame(); game.start(0); game.tick(2100) {}
+        val game = readyGame(); game.start(0); game.tick(2100) {}
         game.hit(0, 2000, true)
         assertEquals(100, game.score)
     }
     @Test fun positiveLightOffsetDoesNotExpireNoteBeforeDelayedInput() {
-        val game = RhythmGame(); game.offsetMs = 300; game.start(0)
+        val game = readyGame(); game.offsetMs = 300; game.start(0)
         game.tick(2300) {}; game.hit(0, 2300, true)
         assertEquals(100, game.score)
     }
     @Test fun practiceHasWiderWindowAndMissResetsSharedCombo() {
-        val normal = RhythmGame(); normal.start(0); normal.hit(0, 1700)
+        val normal = readyGame(); normal.start(0); normal.hit(0, 1700)
         assertEquals(0, normal.hits)
-        val practice = RhythmGame(); practice.practice = true; practice.start(0)
+        val practice = readyGame(); practice.practice = true; practice.start(0)
         practice.hit(0, 1700); assertEquals(1, practice.hits)
         practice.tick(3000) {}; assertEquals(0, practice.combo)
     }
     @Test fun onePlayerGetsAllNotes() {
-        val game = RhythmGame(); repeat(3) { game.active[it] = false }; game.start(0)
+        val game = readyGame(listOf(3)); game.start(0)
         assertTrue(game.notes.all { it.seat == 3 })
     }
     @Test fun twinkleChartFollowsRecordedMelodyAndPlaybackClock() {
         val song = RhythmSong.TWINKLE
-        val game = RhythmGame()
+        val game = readyGame()
         game.song = song
         game.practice = true
         game.start(0)
@@ -129,7 +163,7 @@ class RhythmGameTest {
     }
 
     @Test fun gradesShareComboScoreAndLifeAcrossTouchAndVehicle() {
-        val game = RhythmGame()
+        val game = readyGame()
         game.start(0)
         val errors = listOf(100L, 140L, 180L, 220L)
         val expected = listOf(Judgment.PERFECT, Judgment.GREAT, Judgment.GOOD, Judgment.BAD)
@@ -149,7 +183,7 @@ class RhythmGameTest {
     }
 
     @Test fun emptyLifeEndsStandardPlayAndResetsOnNewGame() {
-        val game = RhythmGame()
+        val game = readyGame()
         game.start(0)
         game.tick(game.notes[9].time + 221L) {}
         assertEquals(0, game.life)
@@ -215,7 +249,7 @@ class RhythmGameTest {
     }
 
     @Test fun timingOffsetSyncsAudioTimelineAndVehicleCompensatesInput() {
-        val game = RhythmGame()
+        val game = readyGame()
         game.song = RhythmSong.TWINKLE
         game.timingOffsetMs = 150
         game.offsetMs = 200
@@ -244,7 +278,7 @@ class RhythmGameTest {
     }
 
     @Test fun timingOffsetShiftsSynthesizedBeatCuesEarly() {
-        val game = RhythmGame()
+        val game = readyGame()
         game.song = RhythmSong.FAMILY_BEAT // beatMs = 500
         game.timingOffsetMs = 100
         game.start(0)
@@ -255,7 +289,7 @@ class RhythmGameTest {
     }
 
     @Test fun familyBeatHitsOnLineRegardlessOfTimingOffset() {
-        val game = RhythmGame()
+        val game = readyGame()
         game.song = RhythmSong.FAMILY_BEAT
         game.timingOffsetMs = 120
         game.start(0)
@@ -285,7 +319,7 @@ class RhythmGameTest {
     }
 
     @Test fun laneJudgementIsRecordedPerLaneAndClearedOnStart() {
-        val game = RhythmGame(); game.start(0)
+        val game = readyGame(); game.start(0)
         val note = game.notes.first()
         val other = (0..3).first { it != note.seat }
         game.tick(note.time) {}

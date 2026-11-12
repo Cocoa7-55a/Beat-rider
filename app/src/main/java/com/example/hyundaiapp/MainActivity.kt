@@ -1,5 +1,6 @@
 package com.example.hyundaiapp
 
+import ai.pleos.playground.vehicle.constant.control.LightState
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
@@ -40,6 +41,34 @@ internal val seatColors = listOf(Color(0xFFFFC857), Color(0xFF72DDF7), Color(0xF
 
 class MainActivity : ComponentActivity() {
     private var pickingSong by mutableStateOf(true)
+    private var seatSetupSince = 0L
+
+    private val showingSeatSetup get() = game.screen == "home" && !pickingSong && !diagnosticsOpen
+
+    private fun showLobbyPage(showSongs: Boolean) {
+        pickingSong = showSongs
+        seatSetupSince = SystemClock.elapsedRealtime()
+    }
+
+    private fun openLobby() {
+        game.resetReadiness()
+        showLobbyPage(showSongs = true)
+        game.screen = "home"
+    }
+
+    private fun onReadingLightChanged(seat: Int, state: LightState, receivedAt: Long) {
+        if (!foreground) return
+        if (showingSeatSetup && receivedAt >= seatSetupSince) {
+            when (state) {
+                LightState.ON -> game.setSeatReady(seat, true)
+                LightState.OFF -> game.setSeatReady(seat, false)
+                else -> Unit
+            }
+        } else if (game.screen == "play" && inputs.experimental && inputs.verified[seat]) {
+            game.hit(seat, receivedAt, vehicle = true)
+        }
+    }
+
     private var foreground by mutableStateOf(false)
     private var calibrationAudioReady by mutableStateOf(false)
     private var timingReturnScreen = "landing"
@@ -71,6 +100,7 @@ class MainActivity : ComponentActivity() {
 
     private fun closeTiming() {
         stopCalibrationAudio()
+        seatSetupSince = SystemClock.elapsedRealtime()
         game.screen = timingReturnScreen
     }
     private var diagnosticsOpen by mutableStateOf(false)
@@ -80,6 +110,7 @@ class MainActivity : ComponentActivity() {
     private fun closeDiagnostics() {
         if (!diagnosticsOpen) return
         diagnosticsOpen = false
+        seatSetupSince = SystemClock.elapsedRealtime()
         if (inputs.experimental != experimentalBeforeDiagnostics) {
             notice = UiNotice(if (inputs.experimental) "독서등 실험 모드를 켰습니다." else "독서등 실험 모드를 껐습니다.")
         }
@@ -98,7 +129,7 @@ class MainActivity : ComponentActivity() {
         .build()
 
     private fun startGame() {
-        if (game.screen != "home" || !inputs.parked) return
+        if (!showingSeatSetup || !inputs.parked || !game.hasReadySeats) return
         releaseRecording()
         val asset = game.song.recordingAsset
         if (asset != null) {
@@ -171,6 +202,8 @@ class MainActivity : ComponentActivity() {
     private fun returnToLobby() {
         pauseGame()
         releaseRecording()
+        game.resetReadiness()
+        showLobbyPage(showSongs = false)
         game.screen = "home"
     }
 
@@ -206,7 +239,7 @@ class MainActivity : ComponentActivity() {
         }.isSuccess
         game.timingOffsetMs = timingPreferences.getLong("offset_ms", 0L)
             .coerceIn(-MAX_TIMING_OFFSET_MS, MAX_TIMING_OFFSET_MS)
-        inputs = VehicleInputs(this, { seat, time -> game.hit(seat, time, true) }, {
+        inputs = VehicleInputs(this, ::onReadingLightChanged, {
             if (game.running || game.resumeRemainingMs > 0) {
                 notice = UiNotice("주차 상태가 바뀌어 연주를 멈췄어요.")
             }
@@ -279,7 +312,7 @@ class MainActivity : ComponentActivity() {
                                         Box(Modifier.weight(1f).fillMaxWidth()) {
                                             when (screen) {
                                                 "landing" -> GameHome(
-                                                    onPlay = { pickingSong = true; game.screen = "home" },
+                                                    onPlay = ::openLobby,
                                                     onTiming = { openTiming("landing") },
                                                     noteSpeed = game.noteSpeed
                                                 ) {
@@ -332,6 +365,7 @@ class MainActivity : ComponentActivity() {
     }
     override fun onResume() {
         super.onResume()
+        seatSetupSince = SystemClock.elapsedRealtime()
         foreground = true
     }
 
@@ -368,7 +402,7 @@ class MainActivity : ComponentActivity() {
                     ) { Text("홈으로", fontSize = 17.sp) }
                     RhythmSegmented(
                         listOf("1. 곡 선택", "2. 자리·게임 설정"), if (pickingSong) 0 else 1,
-                        { pickingSong = it == 0 }, Modifier.widthIn(max = 460.dp).fillMaxWidth()
+                        { showLobbyPage(showSongs = it == 0) }, Modifier.widthIn(max = 460.dp).fillMaxWidth()
                     )
                 }
                 AnimatedContent(
@@ -384,7 +418,7 @@ class MainActivity : ComponentActivity() {
                             difficulty = game.difficulty,
                             onSongSelected = { game.song = it },
                             onDifficultySelected = { game.difficulty = it },
-                            onContinue = { pickingSong = false },
+                            onContinue = { showLobbyPage(showSongs = false) },
                             modifier = Modifier.fillMaxSize()
                         )
                     } else {
@@ -422,16 +456,19 @@ class MainActivity : ComponentActivity() {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             StaggeredHeading(
-                "어디에 앉아 있나요?", "함께 연주할 자리를 눌러 주세요.",
+                "어디에 앉아 있나요?",
+                if (inputs.supported.any { it }) "독서등을 켜거나 자리 카드를 눌러 준비해 주세요."
+                else "자리 카드를 눌러 준비해 주세요.",
                 MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
                 subtitleStyle = MaterialTheme.typography.bodyLarge,
                 horizontalAlignment = Alignment.CenterHorizontally
             )
             VehicleSeatMap(
-                active = game.active,
+                readySeats = game.readySeats,
+                canReadyWithLight = { inputs.supported[it] },
                 hasLightInput = { inputs.experimental && inputs.verified[it] },
-                onSeatSelected = { seat, selected ->
-                    if (selected || game.active.count { it } > 1) game.active[seat] = selected
+                onSeatReady = { seat, ready ->
+                    if (showingSeatSetup) game.setSeatReady(seat, ready)
                 },
                 modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth()
             )
@@ -468,10 +505,13 @@ class MainActivity : ComponentActivity() {
                 }
                 RhythmButton(
                     onClick = ::startGame,
-                    enabled = inputs.parked,
+                    enabled = inputs.parked && game.hasReadySeats,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp)
                 ) {
                     Text("함께 시작", fontSize = 24.sp)
+                }
+                if (!game.hasReadySeats) {
+                    Text("한 자리 이상 준비되면 시작할 수 있어요.", color = RhythmColors.Muted)
                 }
                 RhythmButton(
                     primary = false,
@@ -616,7 +656,7 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
-        val seats = game.active.indices.filter { game.active[it] }
+        val seats = game.playingSeats
         PerformanceStage(game, seats, Modifier.weight(1f).fillMaxWidth())
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val compact = maxWidth < 720.dp
@@ -724,7 +764,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
                 RhythmButton(
-                    onClick = { game.screen = "home" },
+                    onClick = ::returnToLobby,
                     modifier = Modifier.widthIn(min = 240.dp).heightIn(min = 64.dp)
                 ) { Text("다시 모이기", fontSize = 20.sp) }
             }

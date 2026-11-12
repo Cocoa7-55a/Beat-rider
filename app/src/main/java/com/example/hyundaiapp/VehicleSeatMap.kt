@@ -25,24 +25,25 @@ import androidx.compose.ui.unit.sp
 /** Bento seat picker: a gray tile holding a 2×2 grid of white seat cards laid out like the cabin. */
 @Composable
 internal fun VehicleSeatMap(
-    active: List<Boolean>,
+    readySeats: List<Boolean>,
+    canReadyWithLight: (Int) -> Boolean,
     hasLightInput: (Int) -> Boolean,
-    onSeatSelected: (Int, Boolean) -> Unit,
+    onSeatReady: (Int, Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val selectedCount = active.count { it }
+    val readyCount = readySeats.count { it }
     Column(modifier.raisedSurface().padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
             Column(Modifier.weight(1f)) {
                 Text("함께 연주", color = RhythmColors.Muted, fontSize = 16.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
-                    RollingNumber("$selectedCount", style = MaterialTheme.typography.headlineLarge)
-                    Text("명 참가", Modifier.padding(bottom = 6.dp), color = RhythmColors.Muted, fontSize = 17.sp)
+                    RollingNumber("$readyCount", style = MaterialTheme.typography.headlineLarge)
+                    Text("명 준비 완료", Modifier.padding(bottom = 6.dp), color = RhythmColors.Muted, fontSize = 17.sp)
                 }
             }
             // Streak dots: one per seat, lit in that seat's lane colour.
             Row(Modifier.padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                active.forEachIndexed { seat, on ->
+                readySeats.forEachIndexed { seat, on ->
                     val dot by animateColorAsState(if (on) seatColors[seat] else RhythmColors.Line, label = "Seat dot")
                     Spacer(Modifier.size(22.dp).background(dot, RoundedCornerShape(7.dp)))
                 }
@@ -55,40 +56,41 @@ internal fun VehicleSeatMap(
         for (row in 0..1) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 for (seat in row * 2..row * 2 + 1) {
-                    val selected = active[seat]
+                    val ready = readySeats[seat]
                     SeatCard(
                         seat = seat,
-                        selected = selected,
-                        enabled = !selected || selectedCount > 1,
-                        status = when {
-                            !selected -> "참가 안 함"
-                            hasLightInput(seat) -> "독서등 + 터치"
-                            else -> "터치로 참여"
+                        ready = ready,
+                        inputHint = when {
+                            ready && hasLightInput(seat) -> "연주 · 독서등 + 터치"
+                            ready -> "연주 · 터치"
+                            canReadyWithLight(seat) -> "준비 · 독서등 또는 터치"
+                            else -> "준비 · 카드 터치"
                         },
-                        onToggle = { onSeatSelected(seat, it) },
+                        onToggle = { onSeatReady(seat, it) },
                         modifier = Modifier.weight(1f)
                     )
                 }
             }
         }
-        Text("좌핸들 차량 기준 · 최소 1명", color = RhythmColors.Muted, fontSize = 15.sp)
+        if (readySeats.indices.any(canReadyWithLight)) {
+            Text("이미 켜진 독서등은 껐다가 다시 켜 주세요.", color = RhythmColors.Muted, fontSize = 15.sp)
+        }
     }
 }
 
 @Composable
 private fun SeatCard(
     seat: Int,
-    selected: Boolean,
-    enabled: Boolean,
-    status: String,
+    ready: Boolean,
+    inputHint: String,
     onToggle: (Boolean) -> Unit,
     modifier: Modifier
 ) {
     val shape = RoundedCornerShape(20.dp)
-    val scale = selectionScale(selected)
-    val fill by animateColorAsState(if (selected) RhythmColors.Selected else RhythmColors.Inset, label = "Seat fill")
+    val scale = selectionScale(ready)
+    val fill by animateColorAsState(if (ready) RhythmColors.Selected else RhythmColors.Inset, label = "Seat fill")
     val badge by animateColorAsState(
-        lerp(Color.White, seatColors[seat], if (selected) .9f else .3f), label = "Seat badge"
+        lerp(Color.White, seatColors[seat], if (ready) .9f else .3f), label = "Seat badge"
     )
     Column(
         modifier
@@ -99,7 +101,7 @@ private fun SeatCard(
             .insetSurface(shape, fill)
             .focusRing(shape)
             .clip(shape)
-            .toggleable(selected, enabled = enabled, role = Role.Switch, onValueChange = onToggle)
+            .toggleable(ready, role = Role.Switch, onValueChange = onToggle)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -111,14 +113,20 @@ private fun SeatCard(
             Box(Modifier.size(44.dp).background(badge, RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
                 Text(seatIcons[seat], color = RhythmColors.Ink, fontSize = 18.sp)
             }
-            Switch(selected, onCheckedChange = null)
+            Switch(ready, onCheckedChange = null)
         }
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
-                seatNames[seat], color = if (selected) RhythmColors.Blue else RhythmColors.Ink,
+                seatNames[seat], color = if (ready) RhythmColors.Blue else RhythmColors.Ink,
                 fontSize = 19.sp, fontWeight = FontWeight.Bold, maxLines = 1
             )
-            Text(status, color = RhythmColors.Muted, fontSize = 15.sp, maxLines = 1)
+            Text(
+                if (ready) "준비 완료" else "준비 대기",
+                color = if (ready) RhythmColors.Positive else RhythmColors.Muted,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(inputHint, color = RhythmColors.Muted, fontSize = 14.sp)
         }
     }
 }
