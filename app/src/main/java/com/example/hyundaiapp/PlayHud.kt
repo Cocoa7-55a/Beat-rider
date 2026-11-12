@@ -2,7 +2,8 @@ package com.example.hyundaiapp
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -27,23 +28,24 @@ internal fun PlayHud(game: RhythmGame, onPause: () -> Unit) {
     ) {
         Box(Modifier.weight(1f)) {
             PlayGauge(
-                "가족 점수", game.score, game.maxScore, Color(0xFFFFC857),
+                "가족 점수", game.score, game.maxScore, RhythmColors.Blue,
                 Modifier.widthIn(max = 460.dp).fillMaxWidth()
             )
         }
         Box(Modifier.weight(.66f), contentAlignment = Alignment.CenterEnd) {
             PlayGauge(
                 "라이프", game.life, MAX_LIFE,
-                if (game.life <= MAX_LIFE / 4) Color(0xFFFF8DA1) else Color(0xFF9DE5BD),
+                if (game.life <= MAX_LIFE / 4) RhythmColors.Warning else RhythmColors.Positive,
                 Modifier.widthIn(max = 300.dp).fillMaxWidth()
             )
         }
-        val iconColor = if (game.running) MaterialTheme.colorScheme.onSecondaryContainer
-            else MaterialTheme.colorScheme.onSurface.copy(alpha = .38f)
-        FilledTonalIconButton(
+        val iconColor = if (game.running) Color.White else RhythmColors.Muted
+        RhythmButton(
             onClick = onPause,
             enabled = game.running,
-            modifier = Modifier.size(56.dp).semantics { contentDescription = "잠깐 쉬기" }
+            overStage = true,
+            contentPadding = PaddingValues(0.dp),
+            modifier = Modifier.size(58.dp).semantics { contentDescription = "잠깐 쉬기" }
         ) {
             Canvas(Modifier.size(22.dp)) {
                 val barWidth = size.width * .24f
@@ -58,19 +60,28 @@ internal fun PlayHud(game: RhythmGame, onPause: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PlayGauge(label: String, value: Int, maximum: Int, color: Color, modifier: Modifier) {
-    val track = Color(0xFF343D55)
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(label, style = MaterialTheme.typography.labelLarge, color = color)
+    Column(
+        modifier.raisedSurface(RoundedCornerShape(20.dp), overStage = true).padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        FlowRow(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(label, style = MaterialTheme.typography.labelLarge, color = color)
+            Text("$value / $maximum", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+        }
         LinearProgressIndicator(
             progress = { value.toFloat() / maximum.coerceAtLeast(1) },
-            modifier = Modifier.fillMaxWidth().height(12.dp),
+            modifier = Modifier.fillMaxWidth().height(12.dp).insetSurface(CircleShape),
             color = color,
-            trackColor = track,
+            trackColor = Color.Transparent,
             gapSize = 0.dp,
             drawStopIndicator = {}
         )
-        Text("$value / $maximum", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
     }
 }

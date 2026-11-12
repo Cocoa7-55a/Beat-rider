@@ -7,7 +7,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.progressSemantics
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Surface
@@ -29,6 +31,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -54,7 +57,8 @@ internal fun StaggeredHeading(
     subtitleStyle: TextStyle = MaterialTheme.typography.bodyMedium,
     horizontalAlignment: Alignment.Horizontal = Alignment.Start,
     modifier: Modifier = Modifier,
-    animateEntrance: Boolean = true
+    animateEntrance: Boolean = true,
+    titleColor: Color = MaterialTheme.colorScheme.onSurface
 ) {
     key(title) {
         var visible by remember { mutableStateOf(!animateEntrance) }
@@ -66,15 +70,16 @@ internal fun StaggeredHeading(
             label = "Subtitle entrance"
         )
         LaunchedEffect(Unit) { visible = true }
+        val alignment = if (horizontalAlignment == Alignment.CenterHorizontally) TextAlign.Center else TextAlign.Start
         Column(modifier, horizontalAlignment = horizontalAlignment, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(title, Modifier.graphicsLayer {
                 alpha = titleAlpha
                 translationY = (1f - titleAlpha) * 8.dp.toPx()
-            }, style = titleStyle)
+            }, style = titleStyle, color = titleColor, textAlign = alignment)
             Text(subtitle, Modifier.graphicsLayer {
                 alpha = subtitleAlpha
                 translationY = (1f - subtitleAlpha) * 8.dp.toPx()
-            }, style = subtitleStyle, color = Color(0xFFACB8D4))
+            }, style = subtitleStyle, color = RhythmColors.Muted, textAlign = alignment)
         }
     }
 }
@@ -108,7 +113,8 @@ internal fun DrawnCheckbox(checked: Boolean, enabled: Boolean, onCheckedChange: 
         Modifier.size(54.dp).toggleable(checked, enabled = enabled, role = Role.Checkbox, onValueChange = onCheckedChange),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(Modifier.size(24.dp)) {
+        val shape = RoundedCornerShape(9.dp)
+        Canvas(Modifier.size(26.dp).insetSurface(shape)) {
             val outline = 2.dp.toPx()
             val inset = outline / 2
             val corner = CornerRadius(3.dp.toPx())
@@ -135,7 +141,7 @@ internal fun LinearSpinner(modifier: Modifier = Modifier) {
         animationSpec = infiniteRepeatable(tween(400, easing = LinearEasing)),
         label = "Linear rotation"
     )
-    val color = MaterialTheme.colorScheme.primary
+    val color = LocalContentColor.current
     Canvas(modifier.size(20.dp).progressSemantics().rotate(rotation)) {
         val stroke = 2.dp.toPx()
         val inset = stroke / 2
@@ -200,7 +206,10 @@ internal fun SlideSnackbar(notice: UiNotice?, modifier: Modifier = Modifier) {
         },
         label = "Snackbar slide"
     ) { item ->
-        if (item != null) Snackbar(Modifier.widthIn(max = 460.dp).fillMaxWidth()) { Text(item.message) }
+        if (item != null) Snackbar(
+            modifier = Modifier.widthIn(max = 460.dp).fillMaxWidth(),
+            shape = CircleShape
+        ) { Text(item.message) }
     }
 }
 

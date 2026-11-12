@@ -160,8 +160,9 @@ internal fun PerformanceStage(game: RhythmGame, seats: List<Int>, modifier: Modi
             Text(
                 text = ((countdown + 999) / 1000).toString(),
                 modifier = Modifier.align(Alignment.Center)
-                    .background(Color(0xEB101629), RoundedCornerShape(16.dp))
+                    .raisedSurface(RoundedCornerShape(28.dp), overStage = true)
                     .padding(horizontal = 36.dp, vertical = 10.dp),
+                color = RhythmColors.Blue,
                 fontSize = 76.sp,
                 fontWeight = FontWeight.Bold
             )

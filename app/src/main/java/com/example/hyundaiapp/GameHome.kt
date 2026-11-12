@@ -13,26 +13,22 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 internal val GameContentMaxWidth = 1280.dp
-
-private val HomeAccent = Color(0xFFFF82AA)
-private val HomeOnAccent = Color(0xFF301125)
-private val HomePanel = Color(0xFF1D2034)
 
 @Composable
 internal fun GameHome(onPlay: () -> Unit, onTiming: () -> Unit, heading: @Composable () -> Unit) {
@@ -65,16 +61,14 @@ private fun HomeActions(
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(20.dp)) {
         heading()
-        Button(
+        RhythmButton(
             onClick = onPlay,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp),
-            shape = RoundedCornerShape(10.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = HomeAccent, contentColor = HomeOnAccent)
+            modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp)
         ) { Text("곡 선택", fontSize = 24.sp, fontWeight = FontWeight.Bold) }
-        OutlinedButton(
+        RhythmButton(
             onClick = onTiming,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
-            shape = RoundedCornerShape(10.dp)
+            primary = false,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp)
         ) { Text("타이밍 보정", fontSize = 20.sp) }
     }
 }
@@ -90,8 +84,9 @@ internal fun SharedTransitionScope.BrandHeading(
     StaggeredHeading(
         title = "리듬타",
         subtitle = "함께 만드는 우리 가족의 리듬",
-        titleStyle = (if (expanded) typography.displayLarge else typography.headlineLarge)
-            .copy(fontWeight = FontWeight.Black),
+        titleStyle = if (expanded) typography.displayLarge.copy(fontSize = 80.sp, lineHeight = 88.sp)
+            else typography.headlineLarge,
+        titleColor = RhythmColors.Blue,
         subtitleStyle = if (expanded) typography.titleLarge else typography.bodyMedium,
         modifier = Modifier.sharedBounds(
             sharedContentState = rememberSharedContentState(key = "rhythm-title"),
@@ -107,18 +102,43 @@ internal fun SharedTransitionScope.BrandHeading(
 
 @Composable
 private fun LanePreview(modifier: Modifier) {
-    Canvas(modifier.background(HomePanel, RoundedCornerShape(16.dp))) {
-        val line = size.height * .78f
-        val width = size.width / 4
-        val positions = listOf(.53f, .28f, .46f, .18f)
-        seatColors.forEachIndexed { index, color ->
-            val left = width * index
-            drawLine(color.copy(alpha = .20f), Offset(left + 1, 0f), Offset(left + 1, size.height), 1.dp.toPx())
-            drawLine(color, Offset(left + width * .12f, line), Offset(left + width * .88f, line), 4.dp.toPx())
-            drawRoundRect(
-                color, Offset(left + width * .19f, size.height * positions[index]),
-                Size(width * .62f, 22.dp.toPx()), CornerRadius(8.dp.toPx())
-            )
+    Column(
+        modifier.raisedSurface().padding(30.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        val heights = listOf(.48f, .72f, .36f, .61f)
+        Row(
+            Modifier.weight(1f).fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            heights.forEachIndexed { index, level ->
+                Box(
+                    Modifier.weight(1f).fillMaxHeight().insetSurface(CircleShape).clip(CircleShape),
+                    contentAlignment = Alignment.BottomCenter
+                ) {
+                    Canvas(Modifier.matchParentSize()) {
+                        val width = size.width * .68f
+                        val height = size.height * level
+                        val inset = minOf((size.width - width) / 2, size.height * .15f)
+                        drawRoundRect(
+                            color = if (index % 2 == 0) RhythmColors.BlueLight else RhythmColors.Blue,
+                            topLeft = Offset(inset, size.height - height - inset),
+                            size = Size(width, height),
+                            cornerRadius = CornerRadius(width / 2)
+                        )
+                    }
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            heights.indices.forEach { index ->
+                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    Box(
+                        Modifier.size(46.dp).raisedSurface(CircleShape).padding(10.dp)
+                            .background(if (index % 2 == 0) RhythmColors.BlueLight else RhythmColors.Blue, CircleShape)
+                    )
+                }
+            }
         }
     }
 }

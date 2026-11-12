@@ -1,8 +1,6 @@
 package com.example.hyundaiapp
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +14,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
@@ -24,8 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val blueprintInk = Color(0xFF8AA8CA)
-private val diagramLabel = Color(0xFFB8CAE0)
+private val blueprintInk = Color(0xFF607FAE)
 private val vehicleWidth = 340f
 private val vehicleLength = 670f
 
@@ -38,7 +36,7 @@ internal fun VehicleSeatMap(
 ) {
     val selectedCount = active.count { it }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("▲  차량 앞쪽", color = diagramLabel, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        Text("▲  차량 앞쪽", color = RhythmColors.Muted, fontSize = 17.sp, fontWeight = FontWeight.Bold)
         BoxWithConstraints(Modifier.widthIn(max = 400.dp).fillMaxWidth().aspectRatio(vehicleWidth / vehicleLength)) {
             VehicleOutline(Modifier.matchParentSize())
             val textScale = (maxWidth.value / 330f).coerceIn(.8f, 1.22f)
@@ -48,6 +46,7 @@ internal fun VehicleSeatMap(
                 val centerX = if (seat % 2 == 0) .37f else .63f
                 val centerY = if (seat < 2) .49f else .674f
                 val color = seatColors[seat]
+                val ink = lerp(color, RhythmColors.Ink, .68f)
                 val scale = selectionScale(selected)
                 val shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 9.dp, bottomEnd = 9.dp)
                 Column(
@@ -60,9 +59,12 @@ internal fun VehicleSeatMap(
                             scaleX = scale.value
                             scaleY = scale.value
                         }
+                        .then(
+                            if (selected) Modifier.insetSurface(shape, lerp(RhythmColors.Panel, color, .39f))
+                            else Modifier.raisedSurface(shape)
+                        )
+                        .focusRing(shape)
                         .clip(shape)
-                        .background(if (selected) color.copy(alpha = .20f) else Color(0xFF18243A))
-                        .border(if (selected) 2.dp else 1.dp, if (selected) color else blueprintInk.copy(alpha = .55f), shape)
                         .toggleable(
                             value = selected,
                             enabled = !selected || selectedCount > 1,
@@ -73,18 +75,18 @@ internal fun VehicleSeatMap(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    Text(seatIcons[seat], color = color, fontSize = (18 * textScale).sp, lineHeight = (20 * textScale).sp)
+                    Text(seatIcons[seat], color = ink, fontSize = (18 * textScale).sp, lineHeight = (20 * textScale).sp)
                     Text(seatNames[seat], fontSize = (12 * textScale).sp, lineHeight = (15 * textScale).sp, fontWeight = FontWeight.Bold)
                     val status = when {
                         !selected -> "참가 안 함"
                         hasLightInput(seat) -> "독서등 + 터치"
                         else -> "터치로 참여"
                     }
-                    Text(status, color = if (selected) color else diagramLabel, fontSize = (11 * textScale).sp, lineHeight = (14 * textScale).sp)
+                    Text(status, color = if (selected) ink else RhythmColors.Muted, fontSize = (11 * textScale).sp, lineHeight = (14 * textScale).sp)
                 }
             }
         }
-        Text("${selectedCount}명 선택 · 좌핸들 차량 기준", color = diagramLabel, fontSize = 16.sp)
+        Text("${selectedCount}명 선택 · 좌핸들 차량 기준", color = RhythmColors.Muted, fontSize = 16.sp)
     }
 }
 
@@ -114,7 +116,7 @@ private fun VehicleOutline(modifier: Modifier) {
                 cubicTo(44f, 574f, 43f, 543f, 43f, 512f)
                 close()
             }
-            drawPath(body, Color(0xFF243650))
+            drawPath(body, Color(0xFFDBE8F8))
             drawPath(body, blueprintInk, style = Stroke(2f))
 
             for (side in listOf(-1f, 1f)) {
@@ -133,7 +135,7 @@ private fun VehicleOutline(modifier: Modifier) {
                     lineTo(267f, 512f + 104f * side)
                     close()
                 }
-                drawPath(mirror, Color(0xFF344D6A))
+                drawPath(mirror, Color(0xFFB9D0ED))
                 drawPath(mirror, blueprintInk, style = Stroke(1.5f))
 
                 val headlight = Path().apply {
@@ -143,7 +145,7 @@ private fun VehicleOutline(modifier: Modifier) {
                     quadraticTo(77f, 512f + 82f * side, 75f, 512f + 57f * side)
                     close()
                 }
-                drawPath(headlight, Color(0xFF111B2A))
+                drawPath(headlight, Color(0xFF4D70A7))
                 drawPath(headlight, Color(0xFF96B6D3), style = Stroke(1.4f))
                 for (pixel in 0..3) {
                     val center = 512f + (63f + pixel * 10f) * side
@@ -162,7 +164,7 @@ private fun VehicleOutline(modifier: Modifier) {
                 quadraticTo(648f, 433f, 633f, 403f)
                 close()
             }
-            drawPath(tailPanel, Color(0xFF301E35))
+            drawPath(tailPanel, Color(0xFFD7A9BA))
             drawPath(tailPanel, Color(0xFFAC6C88), style = Stroke(1.4f))
             val tailStrip = Path().apply {
                 moveTo(627f, 410f)
@@ -191,7 +193,7 @@ private fun VehicleOutline(modifier: Modifier) {
                 cubicTo(181f, 462f, 196f, 423f, 225f, 414f)
                 close()
             }
-            drawPath(cabin, Color(0xFF131F34))
+            drawPath(cabin, Color(0xFFCBDCF2))
             drawPath(cabin, blueprintInk.copy(alpha = .7f), style = Stroke(1.6f))
 
             val windshield = Path().apply {
@@ -212,7 +214,7 @@ private fun VehicleOutline(modifier: Modifier) {
                 close()
             }
             for (glass in listOf(windshield, hatch)) {
-                drawPath(glass, Color(0xFF344D6A))
+                drawPath(glass, Color(0xFFB9D0ED))
                 drawPath(glass, blueprintInk.copy(alpha = .55f), style = Stroke(1.5f))
             }
 

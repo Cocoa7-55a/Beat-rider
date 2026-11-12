@@ -1,7 +1,6 @@
 package com.example.hyundaiapp
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -10,11 +9,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -60,7 +58,6 @@ internal class TimingTrial(private val startedAt: Long) {
     }
 }
 
-private val previewSurface = Color(0xFF171F35)
 
 @Composable
 internal fun TimingCalibrationPage(
@@ -111,10 +108,10 @@ internal fun TimingCalibrationPage(
 
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
-            Modifier.widthIn(max = GameContentMaxWidth).fillMaxWidth().verticalScroll(rememberScrollState()),
+            Modifier.widthIn(max = GameContentMaxWidth).fillMaxWidth().verticalScroll(rememberScrollState()).padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            OutlinedButton(onClick = {
+            RhythmButton(primary = false, onClick = {
                 trial = null
                 stopAudio()
                 onBack()
@@ -126,14 +123,15 @@ internal fun TimingCalibrationPage(
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val wideLayout = maxWidth >= 720.dp
                 val manual: @Composable (Modifier) -> Unit = { modifier ->
-                    Card(modifier) {
-                        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Box(modifier.raisedSurface()) {
+                        Column(Modifier.padding(28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             Text("수동 보정", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                             Text(signedMs(offsetMs), fontSize = 48.sp, lineHeight = 54.sp, color = MaterialTheme.colorScheme.primary)
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 listOf(-10L, -1L, 1L, 10L).forEach { step ->
                                     val next = (offsetMs + step).coerceIn(-MAX_TIMING_OFFSET_MS, MAX_TIMING_OFFSET_MS)
-                                    OutlinedButton(
+                                    RhythmButton(
+                                        primary = false,
                                         onClick = { onOffsetChanged(next) },
                                         enabled = !measuring && next != offsetMs,
                                         modifier = Modifier.weight(1f).heightIn(min = 58.dp),
@@ -149,17 +147,17 @@ internal fun TimingCalibrationPage(
                     }
                 }
                 val automatic: @Composable (Modifier) -> Unit = { modifier ->
-                    Card(modifier) {
-                        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Box(modifier.raisedSurface()) {
+                        Column(Modifier.padding(28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             Text("자동 보정", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                             Text("노트가 판정선에 닿고 소리가 날 때 한 번씩 눌러 주세요.")
                             CalibrationLane(trial, elapsed, if (wideLayout) 300.dp else 220.dp)
                             if (measuring) {
                                 Text("유효한 탭 $sampleCount / $CalibrationBeats")
                                 Text(tapFeedback ?: "노트를 기다려 주세요.", color = MaterialTheme.colorScheme.primary)
-                                Button(
+                                RhythmButton(
                                     onClick = {
-                                        val active = trial ?: return@Button
+                                        val active = trial ?: return@RhythmButton
                                         val error = active.record(SystemClock.elapsedRealtime())
                                         sampleCount = active.sampleCount
                                         if (error != null) tapFeedback = "입력 오차 ${signedMs(error)}"
@@ -175,7 +173,7 @@ internal fun TimingCalibrationPage(
                             } else {
                                 result?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
                                 if (!canMeasure) Text("주차가 확인되면 측정을 시작할 수 있어요.")
-                                Button(
+                                RhythmButton(
                                     onClick = {
                                         if (startAudio()) {
                                             elapsed = 0L
@@ -213,7 +211,7 @@ internal fun TimingCalibrationPage(
 @Composable
 private fun CalibrationLane(trial: TimingTrial?, elapsed: Long, height: Dp) {
     val accent = MaterialTheme.colorScheme.primary
-    Canvas(Modifier.fillMaxWidth().height(height).background(previewSurface, RoundedCornerShape(12.dp)).clipToBounds()) {
+    Canvas(Modifier.fillMaxWidth().height(height).insetSurface(RoundedCornerShape(24.dp)).clip(RoundedCornerShape(24.dp))) {
         val line = size.height * .79f
         val left = size.width * .23f
         val right = size.width * .77f

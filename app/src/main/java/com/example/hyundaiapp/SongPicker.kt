@@ -2,22 +2,21 @@ package com.example.hyundaiapp
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -34,20 +33,12 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 private object SongPalette {
-    val panel = Color(0xFF1D2034)
-    val row = Color(0xFF282B43)
-    val line = Color(0xFF484D67)
-    val accent = Color(0xFFFF82AA)
-    val onAccent = Color(0xFF301125)
-    val accentStripe = Color(0xFFE35C8E)
-    val label = Color(0xFFC5CCE4)
-    val white = Color(0xFFFFF9FF)
-    val night = Color(0xFF1C2249)
-    val star = Color(0xFFFFDB78)
-    val starlight = Color(0xFFC6DAFF)
-    val sea = Color(0xFF183C48)
-    val disc = Color(0xFF122133)
-    val waveform = Color(0xFF86F2D6)
+    val night = Color(0xFFD6E4FC)
+    val star = Color(0xFF2C64C4)
+    val starlight = Color(0xFF528BF2)
+    val sea = Color(0xFFDCE9FF)
+    val disc = Color(0xFF2758A8)
+    val waveform = Color(0xFFC7DEFF)
 }
 
 @Composable
@@ -66,7 +57,7 @@ internal fun SongPicker(
                 SongList(selectedSong, twinkleAvailable, onSongSelected, Modifier.weight(1f).fillMaxHeight())
                 SongDetails(
                     selectedSong, difficulty, onDifficultySelected, onContinue,
-                    Modifier.weight(1.18f).fillMaxHeight().verticalScroll(rememberScrollState())
+                    Modifier.weight(1.18f).verticalScroll(rememberScrollState())
                 )
             }
         } else {
@@ -95,38 +86,30 @@ private fun SongList(
         )
         LazyColumn(
             Modifier.weight(1f).fillMaxWidth().selectableGroup(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            contentPadding = PaddingValues(9.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             items(RhythmSong.entries, key = { it.name }) { song ->
                 val enabled = song.recordingAsset == null || twinkleAvailable
                 val isSelected = song == selected
                 val scale = selectionScale(isSelected)
-                val shape = RoundedCornerShape(10.dp)
-                val ink = if (isSelected) SongPalette.onAccent else SongPalette.white
+                val shape = RoundedCornerShape(24.dp)
+                val ink = when {
+                    isSelected -> RhythmColors.Blue
+                    enabled -> RhythmColors.Ink
+                    else -> RhythmColors.Muted
+                }
                 Box(
                     Modifier.fillMaxWidth()
                         .graphicsLayer {
                             scaleX = scale.value
                             scaleY = scale.value
                         }
+                        .then(if (isSelected) Modifier.insetSurface(shape, RhythmColors.Selected) else Modifier.raisedSurface(shape))
+                        .focusRing(shape)
                         .clip(shape)
-                        .background(if (isSelected) SongPalette.accent else SongPalette.row)
-                        .focusBorder(shape)
                         .selectable(isSelected, enabled = enabled, role = Role.RadioButton, onClick = { onSelect(song) })
                 ) {
-                    if (isSelected) {
-                        Canvas(Modifier.matchParentSize()) {
-                            repeat(4) { index ->
-                                val x = size.width - index * 20.dp.toPx()
-                                drawLine(
-                                    SongPalette.accentStripe.copy(alpha = .28f),
-                                    Offset(x + 10.dp.toPx(), 0f),
-                                    Offset(x - 42.dp.toPx(), size.height),
-                                    6.dp.toPx()
-                                )
-                            }
-                        }
-                    }
                     Row(
                         Modifier.fillMaxWidth().padding(16.dp),
                         horizontalArrangement = Arrangement.spacedBy(18.dp),
@@ -137,10 +120,12 @@ private fun SongList(
                             Text(song.title, color = ink, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                             Text(
                                 if (enabled) "${song.bpm} BPM   ${song.durationMs / 1000}초" else "음원 필요",
-                                color = if (isSelected) ink else SongPalette.label, fontSize = 17.sp
+                                color = RhythmColors.Muted, fontSize = 17.sp
                             )
                         }
-                        if (isSelected) Text("선택됨", color = ink, fontSize = 16.sp)
+                        if (isSelected) {
+                            Spacer(Modifier.size(18.dp).raisedSurface(CircleShape, RhythmColors.Blue))
+                        }
                     }
                 }
             }
@@ -157,14 +142,14 @@ private fun SongDetails(
     modifier: Modifier
 ) {
     Column(
-        modifier,
+        modifier.padding(10.dp).raisedSurface().padding(28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         val detailWidth = Modifier.widthIn(max = 540.dp).fillMaxWidth()
         AnimatedContent(
             targetState = song,
-            modifier = Modifier.widthIn(max = 470.dp).fillMaxWidth(),
+            modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth().insetSurface(PanelShape).padding(12.dp),
             transitionSpec = { uiFade() },
             label = "Album art"
         ) { currentSong ->
@@ -182,13 +167,13 @@ private fun SongDetails(
             ) {
                 ChartDifficulty.entries.forEach { level ->
                     val selected = difficulty == level
-                    val shape = RoundedCornerShape(8.dp)
-                    val ink = if (selected) SongPalette.onAccent else SongPalette.white
+                    val shape = RoundedCornerShape(22.dp)
+                    val ink = if (selected) RhythmColors.Blue else RhythmColors.Ink
                     Column(
-                        Modifier.weight(1f).heightIn(min = 82.dp).clip(shape)
-                            .background(if (selected) SongPalette.accent else SongPalette.panel)
-                            .border(1.dp, if (selected) SongPalette.accent else SongPalette.line, shape)
-                            .focusBorder(shape)
+                        Modifier.weight(1f).heightIn(min = 82.dp)
+                            .then(if (selected) Modifier.insetSurface(shape, RhythmColors.Selected) else Modifier.raisedSurface(shape))
+                            .focusRing(shape)
+                            .clip(shape)
                             .selectable(selected, role = Role.RadioButton, onClick = { onDifficultySelected(level) })
                             .padding(horizontal = 4.dp, vertical = 8.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -199,13 +184,10 @@ private fun SongDetails(
                     }
                 }
             }
-            Text(difficulty.description, color = SongPalette.label, fontSize = 17.sp)
-            val buttonShape = RoundedCornerShape(8.dp)
-            Button(
+            Text(difficulty.description, color = RhythmColors.Muted, fontSize = 17.sp)
+            RhythmButton(
                 onClick = onContinue,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 68.dp).focusBorder(buttonShape),
-                shape = buttonShape,
-                colors = ButtonDefaults.buttonColors(containerColor = SongPalette.accent, contentColor = SongPalette.onAccent)
+                modifier = Modifier.fillMaxWidth().heightIn(min = 68.dp)
             ) {
                 Text("자리·게임 설정으로", fontSize = 20.sp, fontWeight = FontWeight.Bold)
             }
@@ -214,16 +196,9 @@ private fun SongDetails(
 }
 
 @Composable
-private fun Modifier.focusBorder(shape: RoundedCornerShape): Modifier {
-    var focused by remember { mutableStateOf(false) }
-    return onFocusChanged { focused = it.isFocused }
-        .border(2.dp, if (focused) SongPalette.white else Color.Transparent, shape)
-}
-
-@Composable
 private fun AlbumArt(song: RhythmSong, modifier: Modifier) {
     val twinkle = song == RhythmSong.TWINKLE
-    Canvas(modifier.clip(RoundedCornerShape(10.dp))) {
+    Canvas(modifier.clip(RoundedCornerShape(20.dp))) {
         drawRect(if (twinkle) SongPalette.night else SongPalette.sea)
         val unit = size.minDimension
         if (twinkle) {
