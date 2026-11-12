@@ -145,7 +145,8 @@ class MainActivity : ComponentActivity() {
 
     private fun recordingPosition(): Long? {
         val player = recording ?: return null
-        if (!game.running || !audioFocused || game.elapsed < game.song.countInMs || !recordingReady) return null
+        val startThreshold = (game.song.countInMs - game.timingOffsetMs).coerceAtLeast(0L)
+        if (!game.running || !audioFocused || game.elapsed < startThreshold || !recordingReady) return null
         if (recordingComplete) return game.song.musicDurationMs
         if (!recordingPlaying) {
             player.start()
@@ -177,7 +178,8 @@ class MainActivity : ComponentActivity() {
         if (!audioFocused) return
         val song = game.song
         if (song.recordingAsset != null && game.elapsed >= song.countInMs) return
-        val beat = game.elapsed / song.beatMs
+        val effectiveElapsed = (game.elapsed + game.timingOffsetMs).coerceAtLeast(0L)
+        val beat = effectiveElapsed / song.beatMs
         val sound = if (beat % 4 == 0L) ToneGenerator.TONE_PROP_ACK else ToneGenerator.TONE_PROP_BEEP
         tone?.startTone(sound, 65)
     }

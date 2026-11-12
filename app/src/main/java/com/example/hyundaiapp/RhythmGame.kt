@@ -88,17 +88,29 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
             return
         }
         if (!running) return
+        val synth = song.recordingAsset == null
         val frameDelta = (now - lastFrame).coerceAtLeast(0)
         elapsed = when {
-            song.recordingAsset == null -> elapsed + frameDelta
-            recordingPositionMs != null -> maxOf(elapsed, song.countInMs + recordingPositionMs).coerceAtMost(duration)
-            elapsed < song.countInMs -> (elapsed + frameDelta).coerceAtMost(song.countInMs)
-            else -> elapsed
+            synth -> elapsed + frameDelta
+            recordingPositionMs != null -> {
+                if (recordingPositionMs >= song.musicDurationMs) {
+                    duration
+                } else {
+                    val audioElapsed = song.countInMs + recordingPositionMs - timingOffsetMs
+                    maxOf(elapsed, audioElapsed).coerceAtMost(duration)
+                }
+            }
+            elapsed < song.countInMs + maxOf(0L, -timingOffsetMs) -> {
+                (elapsed + frameDelta).coerceAtMost(song.countInMs + maxOf(0L, -timingOffsetMs))
+            }
+            else -> elapsed // wait for recording position
         }
         lastFrame = now
-        val current = elapsed / song.beatMs
+        // Synth: fire beat cues early so audio reaches ears on time
+        val effectiveElapsed = (elapsed + if (synth) timingOffsetMs else 0L).coerceAtLeast(0L)
+        val current = effectiveElapsed / song.beatMs
         if (current != lastBeat) { lastBeat = current; beat() }
-        val latestInputOffset = maxOf(0L, timingOffsetMs, timingOffsetMs + offsetMs)
+        val latestInputOffset = maxOf(0L, offsetMs)
         for (note in notes) {
             if (note.judged || elapsed <= note.time + window + latestInputOffset) continue
             judge(note, Judgment.MISS)
@@ -108,7 +120,7 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
     }
     fun hit(seat: Int, now: Long, vehicle: Boolean = false) {
         if (!running || seat !in active.indices || !active[seat] || now < segmentStart) return
-        val at = elapsed + (now - lastFrame) - timingOffsetMs - if (vehicle) offsetMs else 0L
+        val at = elapsed + (now - lastFrame) - if (vehicle) offsetMs else 0L
         val note = notes.filter { !it.judged && it.seat == seat }.minByOrNull { abs(it.time - at) } ?: return
         val error = abs(note.time - at)
         if (error > window) {

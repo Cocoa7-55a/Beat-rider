@@ -117,7 +117,7 @@ internal fun TimingCalibrationPage(
                 onBack()
             }, modifier = Modifier.heightIn(min = 56.dp)) { Text("돌아가기", fontSize = 17.sp) }
             StaggeredHeading(
-                "타이밍 보정", "화면을 누르는 시각과 노트 판정 사이의 차이를 맞춰요.",
+                "타이밍 보정", "음악(소리)과 노트가 판정선에 닿는 싱크를 맞춰요.",
                 MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold)
             )
             BoxWithConstraints(Modifier.fillMaxWidth()) {
@@ -142,7 +142,7 @@ internal fun TimingCalibrationPage(
                                     ) { Text(if (step > 0) "+$step" else step.toString(), fontSize = 18.sp) }
                                 }
                             }
-                            Text("±${MAX_TIMING_OFFSET_MS}ms · 양수는 늦게 누르는 입력을 앞당겨 판정합니다.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("±${MAX_TIMING_OFFSET_MS}ms · 양수는 소리가 화면보다 늦게 들릴 때 음원을 앞당겨 일치시킵니다.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             TextButton(onClick = { onOffsetChanged(0L) }, enabled = !measuring && offsetMs != 0L) {
                                 Text("0 ms로 초기화")
                             }

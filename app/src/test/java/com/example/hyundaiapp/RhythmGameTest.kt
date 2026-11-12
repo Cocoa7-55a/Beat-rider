@@ -214,19 +214,65 @@ class RhythmGameTest {
         assertNull(outside.record(firstBeat + 501))
     }
 
-    @Test fun storedTimingOffsetCombinesWithVehicleDelay() {
+    @Test fun timingOffsetSyncsAudioTimelineAndVehicleCompensatesInput() {
         val game = RhythmGame()
-        game.timingOffsetMs = 160
+        game.song = RhythmSong.TWINKLE
+        game.timingOffsetMs = 150
         game.offsetMs = 200
         game.start(0)
+
+        // Recorded song audio clock is shifted by timingOffsetMs (countInMs = 2400):
+        // 2400 + 1950 - 150 = 4200ms
+        game.tick(6500, recordingPositionMs = 1950) {}
+        assertEquals(4200L, game.elapsed)
+
         val first = game.notes.first()
+        assertEquals(4200L, first.time)
+        // Direct touch hits on the synced audio-visual line
+        game.hit(first.seat, 6500)
+        assertEquals(100, game.score)
+        assertEquals(1, game.hits)
+
+        // Vehicle reading light with 200ms delay arrives late, compensated by offsetMs = 200
         val second = game.notes[1]
-        game.tick(first.time + 160) {}
-        game.hit(first.seat, first.time + 160)
-        game.tick(second.time + 360) {}
-        game.hit(second.seat, second.time + 360, vehicle = true)
+        assertEquals(4800L, second.time)
+        game.tick(7100, recordingPositionMs = 2550) {} // elapsed = 2400 + 2550 - 150 = 4800
+        assertEquals(4800L, game.elapsed)
+        game.hit(second.seat, 7300, vehicle = true)
         assertEquals(200, game.score)
         assertEquals(2, game.hits)
+    }
+
+    @Test fun timingOffsetShiftsSynthesizedBeatCuesEarly() {
+        val game = RhythmGame()
+        game.song = RhythmSong.FAMILY_BEAT // beatMs = 500
+        game.timingOffsetMs = 100
+        game.start(0)
+        var beats = 0
+        // At elapsed = 400ms, (400 + 100) / 500 = 1, so the beat fires 100ms early to reach the ear on beat
+        game.tick(400) { beats++ }
+        assertEquals(1, beats)
+    }
+
+    @Test fun familyBeatHitsOnLineRegardlessOfTimingOffset() {
+        val game = RhythmGame()
+        game.song = RhythmSong.FAMILY_BEAT
+        game.timingOffsetMs = 120
+        game.start(0)
+
+        // First playable note is at 2000ms
+        val note = game.notes.first()
+        assertEquals(2000L, note.time)
+
+        // Player sees the note on the line at elapsed = 2000ms and hits:
+        game.tick(2000) {}
+        assertEquals(2000L, game.elapsed)
+        game.hit(note.seat, 2000)
+
+        // Must be PERFECT without artificial judgment delay:
+        assertEquals(100, game.score)
+        assertEquals(1, game.hits)
+        assertEquals(Judgment.PERFECT, game.laneJudge[note.seat]?.judgment)
     }
 
     @Test fun baselineDuplicatesAndReconnectAreExcluded() {
