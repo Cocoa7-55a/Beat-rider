@@ -4,6 +4,11 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -30,6 +35,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 private const val HorizonFadeFraction = .22f
+
+internal fun judgmentColor(judgment: Judgment?) = when (judgment) {
+    Judgment.PERFECT -> Color(0xFFFFC857)
+    Judgment.GREAT -> Color(0xFF72DDF7)
+    Judgment.GOOD -> Color(0xFFB79CFF)
+    Judgment.BAD, Judgment.MISS -> Color(0xFFFF8DA1)
+    null -> Color(0xFFACB8D4)
+}
+
+/** 판정 후 0..1로 흐르는 진행도. 표시 중이 아니면 null. */
+private fun flashProgress(game: RhythmGame, judge: LaneJudge?): Float? {
+    if (judge == null || !game.running) return null
+    val age = game.elapsed - judge.atMs
+    return if (age in 0L until JUDGE_FLASH_MS) age / JUDGE_FLASH_MS.toFloat() else null
+}
 
 @Composable
 internal fun PerformanceBackdrop(modifier: Modifier = Modifier) {
@@ -100,7 +120,11 @@ internal fun PerformanceStage(game: RhythmGame, seats: List<Int>, modifier: Modi
                             if (edge == 0 || edge == seats.size) 2.dp.toPx() else 1.dp.toPx()
                         )
                     }
-                    seats.forEachIndexed { lane, seat -> drawTarget(track, lane, seatColors[seat]) }
+                    seats.forEachIndexed { lane, seat ->
+                        drawTarget(track, lane, seatColors[seat])
+                        val judge = game.laneJudge[seat]
+                        flashProgress(game, judge)?.let { drawLaneFlash(track, lane, judgmentColor(judge?.judgment), 1f - it, judge?.judgment == null) }
+                    }
                     for (note in game.notes) {
                         if (note.judged) continue
                         val progress = 1f - (note.time - elapsed) / travelMs
@@ -113,6 +137,24 @@ internal fun PerformanceStage(game: RhythmGame, seats: List<Int>, modifier: Modi
                 }
             }
         )
+        Row(Modifier.fillMaxWidth(.925f).fillMaxHeight(.85f).align(Alignment.TopCenter)) {
+            seats.forEach { seat ->
+                Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.BottomCenter) {
+                    val judge = game.laneJudge[seat]
+                    val progress = flashProgress(game, judge)
+                    val judgment = judge?.judgment
+                    if (progress != null && judgment != null) {
+                        Text(
+                            judgment.name,
+                            color = judgmentColor(judgment).copy(alpha = 1f - progress),
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Black,
+                            modifier = Modifier.offset(y = (-(26f + 30f * progress)).dp)
+                        )
+                    }
+                }
+            }
+        }
         val countdown = game.resumeRemainingMs
         if (countdown in 1..RESUME_COUNTDOWN_MS) {
             Text(
@@ -206,6 +248,22 @@ private fun DrawScope.drawTarget(track: PerspectiveTrack, lane: Int, color: Colo
     drawLine(color, start, end, 3.dp.toPx(), cap = StrokeCap.Round)
     drawCircle(Color(0xFF101629), 8.dp.toPx(), center)
     drawCircle(color, 8.dp.toPx(), center, style = Stroke(2.dp.toPx()))
+}
+
+private fun DrawScope.drawLaneFlash(track: PerspectiveTrack, lane: Int, color: Color, strength: Float, stray: Boolean) {
+    val s = if (stray) strength * .5f else strength
+    val top = track.judgmentY - (track.judgmentY - track.horizonY) * .45f
+    val path = Path().apply {
+        val tl = track.point(lane.toFloat(), top); val tr = track.point(lane + 1f, top)
+        val br = track.point(lane + 1f, track.judgmentY); val bl = track.point(lane.toFloat(), track.judgmentY)
+        moveTo(tl.x, tl.y); lineTo(tr.x, tr.y); lineTo(br.x, br.y); lineTo(bl.x, bl.y); close()
+    }
+    drawPath(path, Brush.verticalGradient(listOf(Color.Transparent, color.copy(alpha = .45f * s)), startY = top, endY = track.judgmentY))
+    drawLine(
+        color.copy(alpha = .95f * s),
+        track.point(lane + .045f, track.judgmentY), track.point(lane + .955f, track.judgmentY),
+        (3 + 11 * s).dp.toPx(), cap = StrokeCap.Round
+    )
 }
 
 private fun DrawScope.drawStageNote(track: PerspectiveTrack, lane: Int, y: Float, color: Color) {

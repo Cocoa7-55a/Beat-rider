@@ -6,6 +6,7 @@ import kotlin.math.abs
 internal const val RESUME_COUNTDOWN_MS = 3000L
 internal const val RESUME_LIFT_MS = 250L
 internal const val MAX_LIFE = 1000
+internal const val JUDGE_FLASH_MS = 450L
 
 internal enum class Judgment(val points: Int, val lifeCost: Int, val keepsCombo: Boolean) {
     PERFECT(100, 0, true),
@@ -14,6 +15,9 @@ internal enum class Judgment(val points: Int, val lifeCost: Int, val keepsCombo:
     BAD(20, 50, false),
     MISS(0, 100, false)
 }
+
+/** 레인에 마지막으로 표시할 판정. [judgment]가 null이면 노트가 없는 곳을 친 것입니다. [atMs]는 곡 시간(elapsed) 기준. */
+internal data class LaneJudge(val judgment: Judgment?, val atMs: Long)
 
 data class BeatNote(val seat: Int, val time: Long, var judged: Boolean = false)
 class RhythmGame(private val log: (String) -> Unit = {}) {
@@ -37,6 +41,7 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
         private set
     private var resumeAt = 0L
     val active = mutableStateListOf(true, true, true, true)
+    internal val laneJudge = mutableStateListOf<LaneJudge?>(null, null, null, null)
     var notes = listOf<BeatNote>()
     var offsetMs by mutableLongStateOf(0)
     var timingOffsetMs by mutableLongStateOf(0)
@@ -54,6 +59,7 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
         pause()
         elapsed = 0; score = 0; combo = 0; best = 0; hits = 0
         life = MAX_LIFE
+        laneJudge.indices.forEach { laneJudge[it] = null }
         lastBeat = -1; lastFrame = now; segmentStart = now; running = true; screen = "play"
         feedback = "준비! 4박자 후 시작"
     }
@@ -104,6 +110,7 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
         val error = abs(note.time - at)
         if (error > window) {
             feedback = "박자를 기다려요"
+            laneJudge[seat] = LaneJudge(null, elapsed)
             return
         }
         val scaledError = error * 220
@@ -125,6 +132,7 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
         best = maxOf(best, combo)
         life = (life - judgment.lifeCost).coerceAtLeast(0)
         feedback = judgment.name
+        laneJudge[note.seat] = LaneJudge(judgment, elapsed)
         if (failed) finish()
     }
 

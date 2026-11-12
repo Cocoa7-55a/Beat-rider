@@ -236,4 +236,19 @@ class RhythmGameTest {
         assertFalse(edges.accept("ON")); assertFalse(edges.accept(null))
         assertFalse(edges.accept("OFF"))
     }
+
+    @Test fun laneJudgementIsRecordedPerLaneAndClearedOnStart() {
+        val game = RhythmGame(); game.start(0)
+        val note = game.notes.first()
+        val other = (0..3).first { it != note.seat }
+        game.tick(note.time) {}
+        game.hit(note.seat, note.time)
+        assertEquals(Judgment.PERFECT, game.laneJudge[note.seat]?.judgment)
+        game.hit(other, note.time)
+        assertNull(game.laneJudge[other]!!.judgment)
+        game.tick(game.notes[1].time + 221L) {}
+        assertEquals(Judgment.MISS, game.laneJudge[game.notes[1].seat]?.judgment)
+        game.start(0)
+        assertTrue(game.laneJudge.all { it == null })
+    }
 }
