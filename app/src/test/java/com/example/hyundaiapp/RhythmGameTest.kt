@@ -15,6 +15,7 @@ class RhythmGameTest {
         game.tick(20000) {}
         assertEquals(3200, game.maxScore); assertEquals(game.maxScore, game.score); assertEquals(32, game.best)
         assertEquals("result", game.screen)
+        assertEquals(listOf(32, 0, 0, 0, 0), game.judgments.toList())
     }
     @Test fun countdownFreezesSongAndRejectsInputsUntilResumed() {
         val game = RhythmGame()

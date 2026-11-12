@@ -42,6 +42,8 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
     private var resumeAt = 0L
     val active = mutableStateListOf(true, true, true, true)
     internal val laneJudge = mutableStateListOf<LaneJudge?>(null, null, null, null)
+    /** 판정별 노트 수. [Judgment.ordinal]로 색인합니다. */
+    val judgments = mutableStateListOf(0, 0, 0, 0, 0)
     var notes = listOf<BeatNote>()
     var offsetMs by mutableLongStateOf(0)
     var timingOffsetMs by mutableLongStateOf(0)
@@ -60,6 +62,7 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
         elapsed = 0; score = 0; combo = 0; best = 0; hits = 0
         life = MAX_LIFE
         laneJudge.indices.forEach { laneJudge[it] = null }
+        judgments.indices.forEach { judgments[it] = 0 }
         lastBeat = -1; lastFrame = now; segmentStart = now; running = true; screen = "play"
         feedback = "준비! 4박자 후 시작"
     }
@@ -126,6 +129,7 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
 
     private fun judge(note: BeatNote, judgment: Judgment) {
         note.judged = true
+        judgments[judgment.ordinal]++
         if (judgment != Judgment.MISS) hits++
         score += judgment.points
         combo = if (judgment.keepsCombo) combo + 1 else 0

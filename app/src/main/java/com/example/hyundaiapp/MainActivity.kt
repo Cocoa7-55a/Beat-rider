@@ -14,6 +14,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.core.updateTransition
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -418,7 +419,7 @@ class MainActivity : ComponentActivity() {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             StaggeredHeading(
-                "어디에 앉아 있나요?", "도면에서 함께 연주할 자리를 눌러 주세요.",
+                "어디에 앉아 있나요?", "함께 연주할 자리를 눌러 주세요.",
                 MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
                 subtitleStyle = MaterialTheme.typography.bodyLarge,
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -429,7 +430,7 @@ class MainActivity : ComponentActivity() {
                 onSeatSelected = { seat, selected ->
                     if (selected || game.active.count { it } > 1) game.active[seat] = selected
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth()
             )
         }
     }
@@ -701,6 +702,7 @@ class MainActivity : ComponentActivity() {
                     ResultMetric("함께 맞춘 노트", "${game.hits} / ${game.notes.size}", Modifier.weight(1f))
                     ResultMetric("최고 콤보", "${game.best}", Modifier.weight(1f))
                 }
+                JudgmentBreakdown()
                 Text(
                     if (game.hits * 4 >= game.notes.size * 3) "환상의 가족 밴드 ★★★" else "다음 연주도 함께해요 ★",
                     color = RhythmColors.Muted,
@@ -711,6 +713,47 @@ class MainActivity : ComponentActivity() {
                     onClick = { game.screen = "home" },
                     modifier = Modifier.widthIn(min = 240.dp).heightIn(min = 64.dp)
                 ) { Text("다시 모이기", fontSize = 20.sp) }
+            }
+        }
+    }
+
+    /** Segmented bar + legend of how every note was judged. */
+    @Composable private fun JudgmentBreakdown() {
+        val pill = RoundedCornerShape(50)
+        fun tint(judgment: Judgment) = if (judgment == Judgment.MISS) Color(0xFFC9CDD4) else judgmentColor(judgment)
+        Column(
+            Modifier.fillMaxWidth().insetSurface(RoundedCornerShape(24.dp)).padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("판정 분포", color = RhythmColors.Muted, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "정확도 ${game.score * 100 / game.maxScore.coerceAtLeast(1)}%",
+                    color = RhythmColors.Ink, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold
+                )
+            }
+            Row(Modifier.fillMaxWidth().height(12.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                Judgment.entries.forEach { judgment ->
+                    val count = game.judgments[judgment.ordinal]
+                    if (count > 0) {
+                        Spacer(Modifier.weight(count.toFloat()).fillMaxHeight().background(tint(judgment), pill))
+                    }
+                }
+                // Notes never reached because the run ended early.
+                val unplayed = game.notes.size - game.judgments.sum()
+                if (unplayed > 0) {
+                    Spacer(Modifier.weight(unplayed.toFloat()).fillMaxHeight().background(RhythmColors.Panel, pill))
+                }
+            }
+            Judgment.entries.forEach { judgment ->
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Spacer(Modifier.size(10.dp).background(tint(judgment), pill))
+                    Text(judgment.name, Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "${game.judgments[judgment.ordinal]}", color = RhythmColors.Muted,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                    )
+                }
             }
         }
     }
