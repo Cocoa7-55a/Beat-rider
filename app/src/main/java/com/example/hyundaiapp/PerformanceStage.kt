@@ -35,6 +35,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 private const val HorizonFadeFraction = .22f
+internal const val BASE_NOTE_TRAVEL_MS = 2000f
+
+// Both renderers reach depth 1 at the note's scheduled hit time.
+internal fun projectNoteDepth(progress: Float): Float =
+    if (progress <= 1f) progress / (1.6f - .6f * progress)
+    else 1f + (progress - 1f) * 1.6f
+
+internal fun noteScaleAtDepth(depth: Float): Float = .30f + .70f * depth
 
 internal fun judgmentColor(judgment: Judgment?) = when (judgment) {
     Judgment.PERFECT -> Color(0xFFFFC857)
@@ -109,7 +117,7 @@ internal fun PerformanceStage(game: RhythmGame, seats: List<Int>, modifier: Modi
                     drawPath(floor, floorShade)
                     laneFills.forEach { (path, brush) -> drawPath(path, brush) }
                     val elapsed = visibleSongTime(game)
-                    val travelMs = 2000f / game.noteSpeed
+                    val travelMs = BASE_NOTE_TRAVEL_MS / game.noteSpeed
                     drawBeatLines(track, elapsed, travelMs, game.song.beatMs)
                     for (edge in 0..seats.size) {
                         val boundary = edge.toFloat()
@@ -192,16 +200,11 @@ private class PerspectiveTrack(size: Size, val laneCount: Int) {
     private val nearWidth = size.width * if (laneCount == 1) .58f else .925f
     private val approachHeight = judgmentY - horizonY
 
-    fun projectY(progress: Float): Float {
-        // This curve preserves the exact arrival time and quickens the approach near the judgment line.
-        val depth = if (progress <= 1f) progress / (1.6f - .6f * progress)
-            else 1f + (progress - 1f) * 1.6f
-        return horizonY + approachHeight * depth
-    }
+    fun projectY(progress: Float): Float = horizonY + approachHeight * projectNoteDepth(progress)
 
     fun horizonAlphaAt(y: Float): Float = ((y - horizonY) / (fadeEndY - horizonY)).coerceIn(0f, 1f)
 
-    fun scaleAt(y: Float): Float = .30f + .70f * ((y - horizonY) / approachHeight)
+    fun scaleAt(y: Float): Float = noteScaleAtDepth((y - horizonY) / approachHeight)
 
     fun point(lanePosition: Float, y: Float): Offset {
         val across = lanePosition / laneCount - .5f

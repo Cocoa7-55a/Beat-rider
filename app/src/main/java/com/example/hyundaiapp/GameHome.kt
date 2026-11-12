@@ -6,12 +6,10 @@ import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -20,13 +18,17 @@ import androidx.compose.material3.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import kotlinx.coroutines.delay
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -35,7 +37,12 @@ import androidx.compose.ui.unit.sp
 internal val GameContentMaxWidth = 1280.dp
 
 @Composable
-internal fun GameHome(onPlay: () -> Unit, onTiming: () -> Unit, heading: @Composable () -> Unit) {
+internal fun GameHome(
+    onPlay: () -> Unit,
+    onTiming: () -> Unit,
+    noteSpeed: Float,
+    heading: @Composable () -> Unit
+) {
     Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), contentAlignment = Alignment.Center) {
         BoxWithConstraints(Modifier.widthIn(max = GameContentMaxWidth).fillMaxWidth().padding(vertical = 28.dp)) {
             if (maxWidth >= 720.dp) {
@@ -44,12 +51,12 @@ internal fun GameHome(onPlay: () -> Unit, onTiming: () -> Unit, heading: @Compos
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     HomeActions(onPlay, onTiming, heading, Modifier.weight(1f))
-                    LanePreview(Modifier.weight(1.12f).aspectRatio(1.33f))
+                    LanePreview(noteSpeed, Modifier.weight(1.12f).aspectRatio(1.33f))
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
                     HomeActions(onPlay, onTiming, heading, Modifier.fillMaxWidth())
-                    LanePreview(Modifier.fillMaxWidth().aspectRatio(1.6f))
+                    LanePreview(noteSpeed, Modifier.fillMaxWidth().aspectRatio(1.6f))
                 }
             }
         }
@@ -104,42 +111,85 @@ internal fun SharedTransitionScope.BrandHeading(
     )
 }
 
-// Weekday-bar tile: one bar is highlighted blue, and the highlight walks on the beat.
 @Composable
-private fun LanePreview(modifier: Modifier) {
-    val levels = listOf(.48f, .72f, .36f, .61f)
-    var beat by remember { mutableIntStateOf(0) }
-    LaunchedEffect(Unit) {
+private fun LanePreview(noteSpeed: Float, modifier: Modifier) {
+    val song = RhythmSong.FAMILY_BEAT
+    val seats = seatColors.indices
+    val chart = remember { song.playNotes(ChartDifficulty.NORMAL, seats.toList()) }
+    val startMs = chart.first().time
+    val loopMs = chart.last().time - startMs + song.beatMs
+    val hitTimesBySeat = remember(chart) { chart.groupBy({ it.seat }, { it.time - startMs }) }
+    val phase = remember { mutableLongStateOf(song.beatMs / 2) }
+    LaunchedEffect(loopMs) {
+        val startNanos = withFrameNanos { it }
         while (true) {
-            delay(900)
-            beat++
+            withFrameNanos { frameNanos ->
+                phase.longValue = ((frameNanos - startNanos) / 1_000_000L + song.beatMs / 2) % loopMs
+            }
         }
     }
+
+    val travelMs = BASE_NOTE_TRAVEL_MS / noteSpeed
+    val shape = RoundedCornerShape(14.dp)
     Column(modifier.raisedSurface().padding(30.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         Text("오늘의 리듬", color = RhythmColors.Muted, fontSize = 17.sp)
         Row(
             Modifier.weight(1f).fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalAlignment = Alignment.Bottom
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            levels.forEachIndexed { index, level ->
-                val active = beat % levels.size == index
-                val height by animateFloatAsState(
-                    if (active) 1f else level, spring(dampingRatio = .7f, stiffness = 300f), label = "Bar height"
-                )
-                val color by animateColorAsState(if (active) RhythmColors.Blue else RhythmColors.Line, label = "Bar color")
-                Box(
-                    Modifier.weight(1f).fillMaxHeight(height.coerceIn(0f, 1f))
-                        .background(color, RoundedCornerShape(14.dp))
-                )
-            }
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            levels.indices.forEach { index ->
-                val active = beat % levels.size == index
-                val color by animateColorAsState(if (active) RhythmColors.Ink else RhythmColors.Inset, label = "Pad color")
-                Box(Modifier.weight(1f).height(46.dp).insetSurface(RoundedCornerShape(14.dp), color))
+            for (seat in seats) {
+                val hitTimes = hitTimesBySeat.getValue(seat)
+                Column(
+                    Modifier.weight(1f).fillMaxHeight(),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    Canvas(
+                        Modifier.weight(1f).fillMaxWidth().clip(shape).background(RhythmColors.Line)
+                    ) {
+                        val elapsed = phase.longValue
+                        val horizonY = size.height * .06f
+                        val judgmentY = size.height * .90f
+                        val flash = previewHitFlash(hitTimes, elapsed, loopMs)
+                        val lineInset = size.width * .12f
+                        drawLine(
+                            RhythmColors.Blue.copy(alpha = .34f + .66f * flash),
+                            Offset(lineInset, judgmentY),
+                            Offset(size.width - lineInset, judgmentY),
+                            (2 + 2 * flash).dp.toPx(),
+                            cap = StrokeCap.Round
+                        )
+
+                        for (hitTime in hitTimes) {
+                            val timeUntilHit = (hitTime - elapsed + loopMs) % loopMs
+                            if (timeUntilHit > travelMs) continue
+                            val depth = projectNoteDepth(1f - timeUntilHit / travelMs)
+                            val scale = noteScaleAtDepth(depth)
+                            val y = horizonY + (judgmentY - horizonY) * depth
+                            val width = size.width * .76f * scale
+                            val height = minOf(21.dp.toPx(), size.height * .12f) * scale
+                            drawRoundRect(
+                                RhythmColors.Blue.copy(alpha = .62f + .38f * depth),
+                                Offset((size.width - width) / 2, y - height / 2),
+                                Size(width, height),
+                                CornerRadius(height / 2)
+                            )
+                        }
+                    }
+                    Box(
+                        Modifier.fillMaxWidth().height(46.dp)
+                            .insetSurface(shape).clip(shape)
+                            .drawBehind {
+                                val flash = previewHitFlash(hitTimes, phase.longValue, loopMs)
+                                if (flash > 0f) drawRect(RhythmColors.Ink.copy(alpha = flash))
+                            }
+                    )
+                }
             }
         }
     }
+}
+
+private fun previewHitFlash(hitTimes: List<Long>, elapsed: Long, loopMs: Long): Float {
+    val previousHit = hitTimes.lastOrNull { it <= elapsed } ?: (hitTimes.last() - loopMs)
+    return (1f - (elapsed - previousHit) / JUDGE_FLASH_MS.toFloat()).coerceIn(0f, 1f)
 }

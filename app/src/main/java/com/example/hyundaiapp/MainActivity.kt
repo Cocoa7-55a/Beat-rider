@@ -278,7 +278,8 @@ class MainActivity : ComponentActivity() {
                                             when (screen) {
                                                 "landing" -> GameHome(
                                                     onPlay = { pickingSong = true; game.screen = "home" },
-                                                    onTiming = { openTiming("landing") }
+                                                    onTiming = { openTiming("landing") },
+                                                    noteSpeed = game.noteSpeed
                                                 ) {
                                                     BrandHeading(
                                                         visibilityScope, expanded = true,
