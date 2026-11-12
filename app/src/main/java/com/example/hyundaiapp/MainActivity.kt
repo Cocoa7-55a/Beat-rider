@@ -254,22 +254,24 @@ class MainActivity : ComponentActivity() {
                                         Modifier.fillMaxSize().padding(24.dp),
                                         verticalArrangement = Arrangement.spacedBy(12.dp)
                                     ) {
-                                        Row(
-                                            Modifier.fillMaxWidth(),
-                                            horizontalArrangement = if (screen == "landing") Arrangement.End else Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            if (screen != "landing") {
-                                                Box(Modifier.weight(1f).padding(end = 12.dp)) {
-                                                    BrandHeading(visibilityScope, expanded = false)
+                                        if (screen != "play") {
+                                            Row(
+                                                Modifier.fillMaxWidth(),
+                                                horizontalArrangement = if (screen == "landing") Arrangement.End else Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                if (screen != "landing") {
+                                                    Box(Modifier.weight(1f).padding(end = 12.dp)) {
+                                                        BrandHeading(visibilityScope, expanded = false)
+                                                    }
                                                 }
+                                                Text(
+                                                    inputs.status,
+                                                    color = if (inputs.parked) Color(0xFF9DE5BD) else Color(0xFFFFC857),
+                                                    style = if (screen == "landing") MaterialTheme.typography.bodyLarge else
+                                                        MaterialTheme.typography.titleMedium
+                                                )
                                             }
-                                            Text(
-                                                inputs.status,
-                                                color = if (inputs.parked) Color(0xFF9DE5BD) else Color(0xFFFFC857),
-                                                style = if (screen == "landing") MaterialTheme.typography.bodyLarge else
-                                                    MaterialTheme.typography.titleMedium
-                                            )
                                         }
                                         Box(Modifier.weight(1f).fillMaxWidth()) {
                                             when (screen) {
@@ -582,10 +584,18 @@ class MainActivity : ComponentActivity() {
             if (game.combo > 0) {
                 Text("${game.combo} COMBO", color = Color(0xFFFFC857), style = MaterialTheme.typography.titleLarge)
             }
-            Text(
-                "${(game.duration - game.elapsed).coerceAtLeast(0) / 1000}초",
-                style = MaterialTheme.typography.titleMedium
-            )
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    inputs.status,
+                    color = if (inputs.parked) Color(0xFF9DE5BD) else Color(0xFFFFC857),
+                    style = MaterialTheme.typography.labelMedium,
+                    textAlign = TextAlign.End
+                )
+                Text(
+                    "${(game.duration - game.elapsed).coerceAtLeast(0) / 1000}초",
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
         }
         val seats = game.active.indices.filter { game.active[it] }
         PerformanceStage(game, seats, Modifier.weight(1f).fillMaxWidth())

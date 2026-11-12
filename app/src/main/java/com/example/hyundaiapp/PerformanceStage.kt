@@ -29,6 +29,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+private const val HorizonFadeFraction = .22f
+
 @Composable
 internal fun PerformanceBackdrop(modifier: Modifier = Modifier) {
     Box(modifier) {
@@ -61,21 +63,31 @@ internal fun PerformanceStage(game: RhythmGame, seats: List<Int>, modifier: Modi
                 val track = PerspectiveTrack(size, seats.size)
                 val floor = track.surface(0f, seats.size.toFloat())
                 val floorShade = Brush.verticalGradient(
-                    listOf(Color(0xA6061022), Color(0xD9091024)),
+                    0f to Color(0x00061022),
+                    HorizonFadeFraction to Color(0xA6061022),
+                    1f to Color(0xD9091024),
                     startY = track.horizonY,
                     endY = track.endY
                 )
                 val laneFills = seats.mapIndexed { lane, seat ->
-                    track.surface(lane.toFloat(), lane + 1f) to seatColors[seat].copy(alpha = .075f)
+                    val tint = seatColors[seat]
+                    val brush = Brush.verticalGradient(
+                        listOf(tint.copy(alpha = 0f), tint.copy(alpha = .075f)),
+                        startY = track.horizonY,
+                        endY = track.fadeEndY
+                    )
+                    track.surface(lane.toFloat(), lane + 1f) to brush
                 }
                 val railInk = Brush.verticalGradient(
-                    listOf(Color(0x427D94B8), Color(0xA6BACCE6)),
+                    0f to Color(0x007D94B8),
+                    HorizonFadeFraction to Color(0x427D94B8),
+                    1f to Color(0xA6BACCE6),
                     startY = track.horizonY,
                     endY = track.endY
                 )
                 onDrawBehind {
                     drawPath(floor, floorShade)
-                    laneFills.forEach { (path, color) -> drawPath(path, color) }
+                    laneFills.forEach { (path, brush) -> drawPath(path, brush) }
                     val elapsed = visibleSongTime(game)
                     val travelMs = 2000f / game.noteSpeed
                     drawBeatLines(track, elapsed, travelMs, game.song.beatMs)
@@ -131,6 +143,7 @@ private class PerspectiveTrack(size: Size, val laneCount: Int) {
     val horizonY = size.height * .085f
     val judgmentY = size.height * .85f
     val endY = size.height * .94f
+    val fadeEndY = horizonY + (endY - horizonY) * HorizonFadeFraction
     private val centerX = size.width / 2
     private val nearWidth = size.width * if (laneCount == 1) .58f else .925f
     private val approachHeight = judgmentY - horizonY
@@ -141,6 +154,8 @@ private class PerspectiveTrack(size: Size, val laneCount: Int) {
             else 1f + (progress - 1f) * 1.6f
         return horizonY + approachHeight * depth
     }
+
+    fun horizonAlphaAt(y: Float): Float = ((y - horizonY) / (fadeEndY - horizonY)).coerceIn(0f, 1f)
 
     fun scaleAt(y: Float): Float = .30f + .70f * ((y - horizonY) / approachHeight)
 
@@ -172,8 +187,9 @@ private fun DrawScope.drawBeatLines(track: PerspectiveTrack, elapsed: Float, tra
         if (progress !in 0f..1f) continue
         val y = track.projectY(progress)
         val downbeat = beat % 4 == 0L
+        val opacity = if (downbeat) .24f else .12f
         drawLine(
-            Color(0xFFD8E6FF).copy(alpha = track.scaleAt(y) * if (downbeat) .24f else .12f),
+            Color(0xFFD8E6FF).copy(alpha = opacity * track.scaleAt(y) * track.horizonAlphaAt(y)),
             track.point(0f, y),
             track.point(track.laneCount.toFloat(), y),
             if (downbeat) 1.5.dp.toPx() else 1.dp.toPx()
