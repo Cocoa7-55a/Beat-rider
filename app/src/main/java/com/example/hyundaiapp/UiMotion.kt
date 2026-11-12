@@ -52,10 +52,12 @@ internal fun StaggeredHeading(
     subtitle: String,
     titleStyle: TextStyle,
     subtitleStyle: TextStyle = MaterialTheme.typography.bodyMedium,
-    horizontalAlignment: Alignment.Horizontal = Alignment.Start
+    horizontalAlignment: Alignment.Horizontal = Alignment.Start,
+    modifier: Modifier = Modifier,
+    animateEntrance: Boolean = true
 ) {
     key(title) {
-        var visible by remember { mutableStateOf(false) }
+        var visible by remember { mutableStateOf(!animateEntrance) }
         val titleAlpha by animateFloatAsState(
             if (visible) 1f else 0f, tween(EnterMs, easing = EnterEase), label = "Title entrance"
         )
@@ -64,7 +66,7 @@ internal fun StaggeredHeading(
             label = "Subtitle entrance"
         )
         LaunchedEffect(Unit) { visible = true }
-        Column(horizontalAlignment = horizontalAlignment, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(modifier, horizontalAlignment = horizontalAlignment, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(title, Modifier.graphicsLayer {
                 alpha = titleAlpha
                 translationY = (1f - titleAlpha) * 8.dp.toPx()

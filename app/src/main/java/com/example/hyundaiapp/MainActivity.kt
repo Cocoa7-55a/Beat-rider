@@ -11,6 +11,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -129,6 +132,7 @@ class MainActivity : ComponentActivity() {
                 }
             }.build()
     }
+    @OptIn(ExperimentalSharedTransitionApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         tone = runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, 45) }.getOrNull()
@@ -173,55 +177,62 @@ class MainActivity : ComponentActivity() {
                     if (game.screen == "timing") closeTiming() else game.screen = "landing"
                 }
                 Surface(Modifier.fillMaxSize(), color = navy) {
-                    Box(Modifier.fillMaxSize()) {
-                        Column(
-                            Modifier.fillMaxSize().padding(24.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                horizontalArrangement = if (game.screen == "landing") Arrangement.End else Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                if (game.screen != "landing") {
-                                    StaggeredHeading(
-                                        "FAMILY BEAT", "함께 만드는 우리 가족의 리듬",
-                                        MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black)
-                                    )
-                                }
-                                Text(inputs.status, color = if (inputs.parked) Color(0xFF9DE5BD) else Color(0xFFFFC857))
-                            }
-                            AnimatedContent(
-                                targetState = game.screen,
-                                modifier = Modifier.weight(1f).fillMaxWidth(),
-                                transitionSpec = { uiFade() },
-                                label = "Screen transition"
+                    SharedTransitionLayout(Modifier.fillMaxSize()) {
+                        Box(Modifier.fillMaxSize()) {
+                            val screenTransition = updateTransition(game.screen, label = "Screen transition")
+                            screenTransition.AnimatedContent(
+                                modifier = Modifier.fillMaxSize(),
+                                transitionSpec = { uiFade() }
                             ) { screen ->
-                                when (screen) {
-                                    "landing" -> GameHome(
-                                        onPlay = { pickingSong = true; game.screen = "home" },
-                                        onTiming = { openTiming("landing") }
-                                    )
-                                    "home" -> Home()
-                                    "timing" -> TimingCalibrationPage(
-                                        offsetMs = game.timingOffsetMs,
-                                        onOffsetChanged = ::applyTimingOffset,
-                                        canMeasure = inputs.parked && foreground && game.screen == "timing",
-                                        audioReady = calibrationAudioReady,
-                                        startAudio = ::startCalibrationAudio,
-                                        stopAudio = ::stopCalibrationAudio,
-                                        playCue = { if (calibrationAudioReady) tone?.startTone(ToneGenerator.TONE_PROP_BEEP, 65) },
-                                        onBack = ::closeTiming
-                                    )
-                                    "play" -> Column(
-                                        Modifier.fillMaxSize(),
-                                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) { Play() }
-                                    "result" -> Result()
+                                val visibilityScope = this
+                                Column(
+                                    Modifier.fillMaxSize().padding(24.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Row(
+                                        Modifier.fillMaxWidth(),
+                                        horizontalArrangement = if (screen == "landing") Arrangement.End else Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        if (screen != "landing") BrandHeading(visibilityScope, expanded = false)
+                                        Text(inputs.status, color = if (inputs.parked) Color(0xFF9DE5BD) else Color(0xFFFFC857))
+                                    }
+                                    Box(Modifier.weight(1f).fillMaxWidth()) {
+                                        when (screen) {
+                                            "landing" -> GameHome(
+                                                onPlay = { pickingSong = true; game.screen = "home" },
+                                                onTiming = { openTiming("landing") }
+                                            ) {
+                                                BrandHeading(
+                                                    visibilityScope, expanded = true,
+                                                    animateEntrance = screenTransition.currentState == "landing" &&
+                                                        screenTransition.targetState == "landing"
+                                                )
+                                            }
+                                            "home" -> Home()
+                                            "timing" -> TimingCalibrationPage(
+                                                offsetMs = game.timingOffsetMs,
+                                                onOffsetChanged = ::applyTimingOffset,
+                                                canMeasure = inputs.parked && foreground && game.screen == "timing",
+                                                audioReady = calibrationAudioReady,
+                                                startAudio = ::startCalibrationAudio,
+                                                stopAudio = ::stopCalibrationAudio,
+                                                playCue = {
+                                                    if (calibrationAudioReady) tone?.startTone(ToneGenerator.TONE_PROP_BEEP, 65)
+                                                },
+                                                onBack = ::closeTiming
+                                            )
+                                            "play" -> Column(
+                                                Modifier.fillMaxSize(),
+                                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                                            ) { Play() }
+                                            "result" -> Result()
+                                        }
+                                    }
                                 }
                             }
+                            SlideSnackbar(notice, Modifier.align(Alignment.BottomCenter).padding(20.dp))
                         }
-                        SlideSnackbar(notice, Modifier.align(Alignment.BottomCenter).padding(20.dp))
                     }
                 }
                 MotionDialog(diagnosticsOpen, fromBottom = true, onDismissRequest = ::closeDiagnostics) { modifier ->
