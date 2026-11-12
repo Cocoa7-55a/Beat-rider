@@ -580,14 +580,16 @@ class MainActivity : ComponentActivity() {
                 transitionSpec = { uiFade() },
                 label = "Judgment feedback fade"
             ) { feedback ->
-                val color = when (feedback) {
-                    "PERFECT" -> Color(0xFFFFC857)
-                    "GREAT" -> Color(0xFF72DDF7)
-                    "GOOD" -> Color(0xFFB79CFF)
-                    "BAD", "MISS" -> Color(0xFFFF8DA1)
-                    else -> RhythmColors.StageInk
+                if (feedback.isNotEmpty()) {
+                    val color = when (feedback) {
+                        "PERFECT" -> Color(0xFFFFC857)
+                        "GREAT" -> Color(0xFF72DDF7)
+                        "GOOD" -> Color(0xFFB79CFF)
+                        "BAD", "MISS" -> Color(0xFFFF8DA1)
+                        else -> RhythmColors.StageInk
+                    }
+                    Text(feedback, color = color, style = MaterialTheme.typography.titleLarge)
                 }
-                Text(feedback, color = color, style = MaterialTheme.typography.titleLarge)
             }
             if (game.combo > 0) {
                 RollingNumber("${game.combo} COMBO", style = MaterialTheme.typography.titleLarge, color = Color(0xFFFFC857))
@@ -704,12 +706,14 @@ class MainActivity : ComponentActivity() {
                     ResultMetric("최고 콤보", "${game.best}", Modifier.weight(1f))
                 }
                 JudgmentBreakdown()
-                Text(
-                    if (game.hits * 4 >= game.notes.size * 3) "환상의 가족 밴드 ★★★" else "다음 연주도 함께해요 ★",
-                    color = RhythmColors.Muted,
-                    style = MaterialTheme.typography.titleMedium,
-                    textAlign = TextAlign.Center
-                )
+                if (game.hits * 4 >= game.notes.size * 3) {
+                    Text(
+                        "환상의 가족 밴드 ★★★",
+                        color = RhythmColors.Muted,
+                        style = MaterialTheme.typography.titleMedium,
+                        textAlign = TextAlign.Center
+                    )
+                }
                 RhythmButton(
                     onClick = { game.screen = "home" },
                     modifier = Modifier.widthIn(min = 240.dp).heightIn(min = 64.dp)

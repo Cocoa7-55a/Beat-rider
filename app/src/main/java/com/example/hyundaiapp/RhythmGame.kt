@@ -33,7 +33,7 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
     var combo by mutableIntStateOf(0)
     var best by mutableIntStateOf(0)
     var hits by mutableIntStateOf(0)
-    var feedback by mutableStateOf("함께 박자를 맞춰요")
+    var feedback by mutableStateOf("")
         private set
     var practice by mutableStateOf(false)
     var noteSpeed by mutableFloatStateOf(1f)
@@ -64,7 +64,7 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
         laneJudge.indices.forEach { laneJudge[it] = null }
         judgments.indices.forEach { judgments[it] = 0 }
         lastBeat = -1; lastFrame = now; segmentStart = now; running = true; screen = "play"
-        feedback = "준비! 4박자 후 시작"
+        feedback = ""
     }
     fun pause() {
         running = false

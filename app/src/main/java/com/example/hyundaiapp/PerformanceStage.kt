@@ -1,12 +1,10 @@
 package com.example.hyundaiapp
 
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Spacer
@@ -28,8 +26,6 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -61,25 +57,11 @@ private fun flashProgress(game: RhythmGame, judge: LaneJudge?): Float? {
 
 @Composable
 internal fun PerformanceBackdrop(modifier: Modifier = Modifier) {
-    Box(modifier) {
-        Image(
-            painter = painterResource(R.drawable.performance_stage),
-            contentDescription = null,
-            contentScale = ContentScale.FillBounds,
-            modifier = Modifier.matchParentSize()
+    Spacer(
+        modifier.background(
+            Brush.verticalGradient(listOf(Color(0xFF111722), Color(0xFF1E2737)))
         )
-        Spacer(
-            Modifier.matchParentSize().background(
-                Brush.verticalGradient(
-                    0f to Color(0xDE101629),
-                    .22f to Color(0x7A101629),
-                    .48f to Color.Transparent,
-                    .76f to Color.Transparent,
-                    1f to Color(0xBD101629)
-                )
-            )
-        )
-    }
+    )
 }
 
 @Composable
