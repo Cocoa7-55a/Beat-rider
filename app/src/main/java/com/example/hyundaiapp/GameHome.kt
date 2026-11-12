@@ -28,6 +28,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+internal val GameContentMaxWidth = 1280.dp
+
 private val HomeAccent = Color(0xFFFF82AA)
 private val HomeOnAccent = Color(0xFF301125)
 private val HomePanel = Color(0xFF1D2034)
@@ -35,7 +37,7 @@ private val HomePanel = Color(0xFF1D2034)
 @Composable
 internal fun GameHome(onPlay: () -> Unit, onTiming: () -> Unit, heading: @Composable () -> Unit) {
     Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), contentAlignment = Alignment.Center) {
-        BoxWithConstraints(Modifier.widthIn(max = 1280.dp).fillMaxWidth().padding(vertical = 28.dp)) {
+        BoxWithConstraints(Modifier.widthIn(max = GameContentMaxWidth).fillMaxWidth().padding(vertical = 28.dp)) {
             if (maxWidth >= 720.dp) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(48.dp),
@@ -88,7 +90,7 @@ internal fun SharedTransitionScope.BrandHeading(
     StaggeredHeading(
         title = "리듬타",
         subtitle = "함께 만드는 우리 가족의 리듬",
-        titleStyle = (if (expanded) typography.displayLarge else typography.headlineMedium)
+        titleStyle = (if (expanded) typography.displayLarge else typography.headlineLarge)
             .copy(fontWeight = FontWeight.Black),
         subtitleStyle = if (expanded) typography.titleLarge else typography.bodyMedium,
         modifier = Modifier.sharedBounds(

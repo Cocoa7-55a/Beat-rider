@@ -16,6 +16,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.os.SystemClock
@@ -110,33 +111,34 @@ internal fun TimingCalibrationPage(
 
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
-            Modifier.widthIn(max = 980.dp).fillMaxWidth().verticalScroll(rememberScrollState()),
+            Modifier.widthIn(max = GameContentMaxWidth).fillMaxWidth().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             OutlinedButton(onClick = {
                 trial = null
                 stopAudio()
                 onBack()
-            }) { Text("돌아가기") }
+            }, modifier = Modifier.heightIn(min = 56.dp)) { Text("돌아가기", fontSize = 17.sp) }
             StaggeredHeading(
                 "타이밍 보정", "화면을 누르는 시각과 노트 판정 사이의 차이를 맞춰요.",
-                MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
+                MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold)
             )
             BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val wideLayout = maxWidth >= 720.dp
                 val manual: @Composable (Modifier) -> Unit = { modifier ->
                     Card(modifier) {
-                        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text("수동 보정", fontSize = 21.sp, fontWeight = FontWeight.Bold)
-                            Text(signedMs(offsetMs), fontSize = 36.sp, color = MaterialTheme.colorScheme.primary)
+                        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            Text("수동 보정", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                            Text(signedMs(offsetMs), fontSize = 48.sp, lineHeight = 54.sp, color = MaterialTheme.colorScheme.primary)
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 listOf(-10L, -1L, 1L, 10L).forEach { step ->
                                     val next = (offsetMs + step).coerceIn(-MAX_TIMING_OFFSET_MS, MAX_TIMING_OFFSET_MS)
                                     OutlinedButton(
                                         onClick = { onOffsetChanged(next) },
                                         enabled = !measuring && next != offsetMs,
-                                        modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                                        modifier = Modifier.weight(1f).heightIn(min = 58.dp),
                                         contentPadding = PaddingValues(horizontal = 4.dp)
-                                    ) { Text(if (step > 0) "+$step" else step.toString()) }
+                                    ) { Text(if (step > 0) "+$step" else step.toString(), fontSize = 18.sp) }
                                 }
                             }
                             Text("±${MAX_TIMING_OFFSET_MS}ms · 양수는 늦게 누르는 입력을 앞당겨 판정합니다.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -148,10 +150,10 @@ internal fun TimingCalibrationPage(
                 }
                 val automatic: @Composable (Modifier) -> Unit = { modifier ->
                     Card(modifier) {
-                        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text("자동 보정", fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            Text("자동 보정", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                             Text("노트가 판정선에 닿고 소리가 날 때 한 번씩 눌러 주세요.")
-                            CalibrationLane(trial, elapsed)
+                            CalibrationLane(trial, elapsed, if (wideLayout) 300.dp else 220.dp)
                             if (measuring) {
                                 Text("유효한 탭 $sampleCount / $CalibrationBeats")
                                 Text(tapFeedback ?: "노트를 기다려 주세요.", color = MaterialTheme.colorScheme.primary)
@@ -163,8 +165,8 @@ internal fun TimingCalibrationPage(
                                         if (error != null) tapFeedback = "입력 오차 ${signedMs(error)}"
                                     },
                                     enabled = canMeasure && audioReady,
-                                    modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp)
-                                ) { Text("박자에 맞춰 누르기") }
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 68.dp)
+                                ) { Text("박자에 맞춰 누르기", fontSize = 20.sp) }
                                 TextButton(onClick = {
                                     trial = null
                                     stopAudio()
@@ -186,14 +188,14 @@ internal fun TimingCalibrationPage(
                                         }
                                     },
                                     enabled = canMeasure,
-                                    modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp)
-                                ) { Text("자동 보정 시작") }
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 68.dp)
+                                ) { Text("자동 보정 시작", fontSize = 20.sp) }
                             }
                         }
                     }
                 }
-                if (maxWidth >= 640.dp) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                if (wideLayout) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(26.dp)) {
                         manual(Modifier.weight(1f))
                         automatic(Modifier.weight(1.25f))
                     }
@@ -209,9 +211,9 @@ internal fun TimingCalibrationPage(
 }
 
 @Composable
-private fun CalibrationLane(trial: TimingTrial?, elapsed: Long) {
+private fun CalibrationLane(trial: TimingTrial?, elapsed: Long, height: Dp) {
     val accent = MaterialTheme.colorScheme.primary
-    Canvas(Modifier.fillMaxWidth().height(220.dp).background(previewSurface, RoundedCornerShape(12.dp)).clipToBounds()) {
+    Canvas(Modifier.fillMaxWidth().height(height).background(previewSurface, RoundedCornerShape(12.dp)).clipToBounds()) {
         val line = size.height * .79f
         val left = size.width * .23f
         val right = size.width * .77f
@@ -225,8 +227,8 @@ private fun CalibrationLane(trial: TimingTrial?, elapsed: Long) {
         if (noteAt != null) {
             val y = line - (noteAt - elapsed).toFloat() / NoteTravelMs * line
             drawRoundRect(
-                accent, Offset(size.width * .33f, y - 8.dp.toPx()),
-                Size(size.width * .34f, 16.dp.toPx()), CornerRadius(6.dp.toPx())
+                accent, Offset(size.width * .33f, y - 11.dp.toPx()),
+                Size(size.width * .34f, 22.dp.toPx()), CornerRadius(8.dp.toPx())
             )
         }
     }

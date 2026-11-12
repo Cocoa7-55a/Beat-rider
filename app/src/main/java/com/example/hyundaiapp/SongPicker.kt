@@ -61,7 +61,7 @@ internal fun SongPicker(
 ) {
     BoxWithConstraints(modifier) {
         if (maxWidth >= 620.dp) {
-            Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+            Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
                 SongList(selectedSong, onSongSelected, Modifier.weight(1f).fillMaxHeight())
                 SongDetails(
                     selectedSong, difficulty, onDifficultySelected, onContinue,
@@ -73,7 +73,7 @@ internal fun SongPicker(
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                SongList(selectedSong, onSongSelected, Modifier.fillMaxWidth().height(230.dp))
+                SongList(selectedSong, onSongSelected, Modifier.fillMaxWidth().height(290.dp))
                 SongDetails(selectedSong, difficulty, onDifficultySelected, onContinue, Modifier.fillMaxWidth())
             }
         }
@@ -85,7 +85,7 @@ private fun SongList(selected: RhythmSong, onSelect: (RhythmSong) -> Unit, modif
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         StaggeredHeading(
             "곡 목록", "내장곡 ${RhythmSong.entries.size}곡",
-            MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
+            MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
         )
         LazyColumn(
             Modifier.weight(1f).fillMaxWidth().selectableGroup(),
@@ -121,19 +121,19 @@ private fun SongList(selected: RhythmSong, onSelect: (RhythmSong) -> Unit, modif
                         }
                     }
                     Row(
-                        Modifier.fillMaxWidth().padding(12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        Modifier.fillMaxWidth().padding(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(18.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        AlbumArt(song, Modifier.size(54.dp))
+                        AlbumArt(song, Modifier.size(68.dp))
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(song.title, color = ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Text(song.title, color = ink, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                             Text(
                                 "${song.bpm} BPM   ${song.durationMs / 1000}초",
-                                color = if (isSelected) ink else SongPalette.label, fontSize = 14.sp
+                                color = if (isSelected) ink else SongPalette.label, fontSize = 17.sp
                             )
                         }
-                        if (isSelected) Text("선택됨", color = ink, fontSize = 13.sp)
+                        if (isSelected) Text("선택됨", color = ink, fontSize = 16.sp)
                     }
                 }
             }
@@ -152,12 +152,12 @@ private fun SongDetails(
     Column(
         modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        val detailWidth = Modifier.widthIn(max = 420.dp).fillMaxWidth()
+        val detailWidth = Modifier.widthIn(max = 540.dp).fillMaxWidth()
         AnimatedContent(
             targetState = song,
-            modifier = Modifier.widthIn(max = 385.dp).fillMaxWidth(),
+            modifier = Modifier.widthIn(max = 470.dp).fillMaxWidth(),
             transitionSpec = { uiFade() },
             label = "Album art"
         ) { currentSong ->
@@ -166,9 +166,9 @@ private fun SongDetails(
         Column(detailWidth, verticalArrangement = Arrangement.spacedBy(10.dp)) {
             StaggeredHeading(
                 song.title, "${song.bpm} BPM   ${song.durationMs / 1000}초",
-                MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
+                MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
             )
-            Text("난이도", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Text("난이도", fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Row(
                 Modifier.fillMaxWidth().selectableGroup(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -178,7 +178,7 @@ private fun SongDetails(
                     val shape = RoundedCornerShape(8.dp)
                     val ink = if (selected) SongPalette.onAccent else SongPalette.white
                     Column(
-                        Modifier.weight(1f).heightIn(min = 66.dp).clip(shape)
+                        Modifier.weight(1f).heightIn(min = 82.dp).clip(shape)
                             .background(if (selected) SongPalette.accent else SongPalette.panel)
                             .border(1.dp, if (selected) SongPalette.accent else SongPalette.line, shape)
                             .focusBorder(shape)
@@ -187,20 +187,20 @@ private fun SongDetails(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        Text(level.label, color = ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Text("${song.chart(level).size}노트", color = ink, fontSize = 13.sp)
+                        Text(level.label, color = ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        Text("${song.chart(level).size}노트", color = ink, fontSize = 16.sp)
                     }
                 }
             }
-            Text(difficulty.description, color = SongPalette.label, fontSize = 14.sp)
+            Text(difficulty.description, color = SongPalette.label, fontSize = 17.sp)
             val buttonShape = RoundedCornerShape(8.dp)
             Button(
                 onClick = onContinue,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp).focusBorder(buttonShape),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 68.dp).focusBorder(buttonShape),
                 shape = buttonShape,
                 colors = ButtonDefaults.buttonColors(containerColor = SongPalette.accent, contentColor = SongPalette.onAccent)
             ) {
-                Text("자리·게임 설정으로", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text("자리·게임 설정으로", fontSize = 20.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

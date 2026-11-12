@@ -31,6 +31,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.Locale
@@ -194,8 +195,17 @@ class MainActivity : ComponentActivity() {
                                         horizontalArrangement = if (screen == "landing") Arrangement.End else Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        if (screen != "landing") BrandHeading(visibilityScope, expanded = false)
-                                        Text(inputs.status, color = if (inputs.parked) Color(0xFF9DE5BD) else Color(0xFFFFC857))
+                                        if (screen != "landing") {
+                                            Box(Modifier.weight(1f).padding(end = 12.dp)) {
+                                                BrandHeading(visibilityScope, expanded = false)
+                                            }
+                                        }
+                                        Text(
+                                            inputs.status,
+                                            color = if (inputs.parked) Color(0xFF9DE5BD) else Color(0xFFFFC857),
+                                            style = if (screen == "landing") MaterialTheme.typography.bodyLarge else
+                                                MaterialTheme.typography.titleMedium
+                                        )
                                     }
                                     Box(Modifier.weight(1f).fillMaxWidth()) {
                                         when (screen) {
@@ -237,11 +247,11 @@ class MainActivity : ComponentActivity() {
                 }
                 MotionDialog(diagnosticsOpen, fromBottom = true, onDismissRequest = ::closeDiagnostics) { modifier ->
                     Surface(
-                        modifier.widthIn(max = 960.dp).fillMaxWidth().fillMaxHeight(.82f),
+                        modifier.widthIn(max = 1120.dp).fillMaxWidth().fillMaxHeight(.88f),
                         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
                         tonalElevation = 6.dp
                     ) {
-                        TestPanel(Modifier.padding(24.dp))
+                        TestPanel(Modifier.padding(28.dp))
                     }
                 }
                 PauseDialog()
@@ -262,23 +272,29 @@ class MainActivity : ComponentActivity() {
     }
     override fun onDestroy() { inputs.close(); audioManager.abandonAudioFocusRequest(focusRequest); tone?.release(); melody.release(); super.onDestroy() }
 
+    @OptIn(ExperimentalLayoutApi::class)
     @Composable private fun Home() {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             Column(
-                Modifier.widthIn(max = 1100.dp).fillMaxWidth().fillMaxHeight(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                Modifier.widthIn(max = GameContentMaxWidth).fillMaxWidth().fillMaxHeight(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { game.screen = "landing" }) { Text("홈으로") }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    TextButton(
+                        onClick = { game.screen = "landing" },
+                        modifier = Modifier.heightIn(min = 52.dp)
+                    ) { Text("홈으로", fontSize = 17.sp) }
                     FilterChip(
                         selected = pickingSong,
                         onClick = { pickingSong = true },
-                        label = { Text("1. 곡 선택") }
+                        modifier = Modifier.heightIn(min = 52.dp),
+                        label = { Text("1. 곡 선택", fontSize = 17.sp) }
                     )
                     FilterChip(
                         selected = !pickingSong,
                         onClick = { pickingSong = false },
-                        label = { Text("2. 자리·게임 설정") }
+                        modifier = Modifier.heightIn(min = 52.dp),
+                        label = { Text("2. 자리·게임 설정", fontSize = 17.sp) }
                     )
                 }
                 AnimatedContent(
@@ -309,7 +325,7 @@ class MainActivity : ComponentActivity() {
             if (maxWidth >= 760.dp) {
                 Row(
                     Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(40.dp),
+                    horizontalArrangement = Arrangement.spacedBy(48.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     LobbySeatSelection(Modifier.weight(1f))
@@ -332,7 +348,8 @@ class MainActivity : ComponentActivity() {
         ) {
             StaggeredHeading(
                 "어디에 앉아 있나요?", "도면에서 함께 연주할 자리를 눌러 주세요.",
-                MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                subtitleStyle = MaterialTheme.typography.bodyLarge,
                 horizontalAlignment = Alignment.CenterHorizontally
             )
             VehicleSeatMap(
@@ -348,9 +365,9 @@ class MainActivity : ComponentActivity() {
 
     @Composable private fun LobbySettings(modifier: Modifier) {
         Card(modifier, colors = CardDefaults.cardColors(containerColor = Color(0xFF1D2640))) {
-            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            Column(Modifier.padding(30.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("연주 설정", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    Text("연주 설정", fontSize = 30.sp, fontWeight = FontWeight.Bold)
                     Text("${game.song.title} · ${game.difficulty.label} · ${game.song.chart(game.difficulty).size}노트", color = Color(0xFFACB8D4))
                 }
                 Row(
@@ -358,10 +375,10 @@ class MainActivity : ComponentActivity() {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Switch(game.practice, { game.practice = it })
-                    Text("연습 모드 · 판정 시간을 넉넉하게")
+                    Text("연습 모드 · 판정 시간을 넉넉하게", fontSize = 18.sp)
                 }
                 Column {
-                    Text("노트 낙하 속도 · " + String.format(Locale.ROOT, "%.2f×", game.noteSpeed))
+                    Text("노트 낙하 속도 · " + String.format(Locale.ROOT, "%.2f×", game.noteSpeed), fontSize = 18.sp)
                     Slider(
                         value = game.noteSpeed,
                         onValueChange = { game.noteSpeed = it },
@@ -373,9 +390,9 @@ class MainActivity : ComponentActivity() {
                 Button(
                     onClick = { if (game.screen == "home" && inputs.parked) game.start(SystemClock.elapsedRealtime()) },
                     enabled = inputs.parked,
-                    modifier = Modifier.fillMaxWidth().height(56.dp)
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp)
                 ) {
-                    Text("함께 시작", fontSize = 20.sp)
+                    Text("함께 시작", fontSize = 24.sp)
                 }
                 OutlinedButton(
                     onClick = {
@@ -383,18 +400,22 @@ class MainActivity : ComponentActivity() {
                         diagnosticsOpen = true
                         inputs.probe()
                     },
-                    modifier = Modifier.fillMaxWidth().height(52.dp)
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp)
                 ) {
-                    Text("독서등 입력 테스트")
+                    Text("독서등 입력 테스트", fontSize = 18.sp)
                 }
-                TextButton(onClick = { openTiming("home") }, modifier = Modifier.fillMaxWidth()) {
-                    Text("타이밍 보정")
+                TextButton(
+                    onClick = { openTiming("home") },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                ) {
+                    Text("타이밍 보정", fontSize = 18.sp)
                 }
                 Text("준비 4박 뒤, 노트가 판정선에 닿으면 내 자리 버튼을 누르세요.", color = Color(0xFFACB8D4))
             }
         }
     }
 
+    @OptIn(ExperimentalLayoutApi::class)
     @Composable private fun TestPanel(modifier: Modifier) {
         var toast by remember { mutableStateOf<UiNotice?>(null) }
         LaunchedEffect(toast) {
@@ -404,25 +425,43 @@ class MainActivity : ComponentActivity() {
             }
         }
         Box(modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     StaggeredHeading(
                         "독서등 입력 테스트", "좌석별 독서등 신호 확인",
-                        MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
+                        MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                        subtitleStyle = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f)
                     )
-                    OutlinedButton(onClick = ::closeDiagnostics) { Text("닫기") }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(onClick = { inputs.probe() }, enabled = !inputs.probing) {
-                        if (inputs.probing) LinearSpinner(Modifier.padding(end = 8.dp))
-                        Text(if (inputs.probing) "확인 중" else "지원 범위 / 스위치 새로고침")
+                    OutlinedButton(onClick = ::closeDiagnostics, modifier = Modifier.heightIn(min = 56.dp)) {
+                        Text("닫기", fontSize = 17.sp)
                     }
-                    Switch(inputs.experimental, { inputs.experimental = it })
-                    Text("독서등 실험 모드")
+                }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                    Button(
+                        onClick = { inputs.probe() },
+                        enabled = !inputs.probing,
+                        modifier = Modifier.heightIn(min = 56.dp)
+                    ) {
+                        if (inputs.probing) LinearSpinner(Modifier.padding(end = 8.dp))
+                        Text(if (inputs.probing) "확인 중" else "지원 범위 / 스위치 새로고침", fontSize = 17.sp)
+                    }
+                    Row(
+                        Modifier.heightIn(min = 56.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Switch(inputs.experimental, { inputs.experimental = it })
+                        Text("독서등 실험 모드")
+                    }
                 }
                 Text("각 자리의 독서등을 켰다 꺼 주세요. 변화가 확인되면 해당 자리의 연결을 확인하세요. 좌석은 좌핸들 차량 기준입니다.")
                 repeat(4) { i ->
-                    Row(Modifier.fillMaxWidth().background(Color(0xFF1D2640), RoundedCornerShape(12.dp)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().background(Color(0xFF1D2640), RoundedCornerShape(12.dp)).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("${seatIcons[i]} ${seatNames[i]}", color = seatColors[i], modifier = Modifier.weight(1f))
                         Text("스위치 조회값 ${inputs.switches[i]}  /  현재 점등 ${inputs.states[i]}", Modifier.weight(2f))
                         DrawnCheckbox(inputs.verified[i], inputs.supported[i] && inputs.changed[i]) { checked ->
@@ -434,17 +473,29 @@ class MainActivity : ComponentActivity() {
                 }
                 Text("독서등 지연 보정 ${game.offsetMs} ms · ${if(game.practice) "연습 ±350" else "기본 ±220"} ms 판정")
                 Slider(game.offsetMs.toFloat(), { game.offsetMs = it.toLong() }, valueRange = -300f..300f)
-                Text("아래 시간은 앱 수신 시각과 이벤트 간격입니다. 물리 스위치부터의 지연은 별도 측정이 필요해요.", fontSize = 12.sp)
-                inputs.logs.forEach { Text(it, fontSize = 12.sp, color = Color(0xFFACB8D4)) }
+                Text("아래 시간은 앱 수신 시각과 이벤트 간격입니다. 물리 스위치부터의 지연은 별도 측정이 필요해요.", fontSize = 14.sp)
+                inputs.logs.forEach { Text(it, fontSize = 14.sp, color = Color(0xFFACB8D4)) }
             }
             FadeToast(toast, Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp))
         }
     }
 
     @Composable private fun ColumnScope.Play() {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("가족 점수 ${game.score}    ${game.combo} COMBO", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            Text("${(game.duration - game.elapsed).coerceAtLeast(0) / 1000}초", fontSize = 24.sp)
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "가족 점수 ${game.score}    ${game.combo} COMBO",
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                "${(game.duration - game.elapsed).coerceAtLeast(0) / 1000}초",
+                style = MaterialTheme.typography.headlineSmall
+            )
         }
         val preparingResume = game.resumeRemainingMs > 0
         val message = when {
@@ -456,12 +507,13 @@ class MainActivity : ComponentActivity() {
             targetState = message,
             transitionSpec = { uiFade() },
             label = "Judgment feedback fade"
-        ) { feedback -> Text(feedback, color = Color(0xFFFFC857)) }
+        ) { feedback -> Text(feedback, color = Color(0xFFFFC857), style = MaterialTheme.typography.titleMedium) }
         val seats = game.active.indices.filter { game.active[it] }
         Box(Modifier.weight(1f).fillMaxWidth().background(Color(0xFF171F35), RoundedCornerShape(16.dp))) {
             Canvas(Modifier.fillMaxSize().clipToBounds()) {
                 val width = size.width / seats.size
                 val line = size.height * .82f
+                val noteHeight = 28.dp.toPx()
                 val remainingMs = game.resumeRemainingMs
                 val rewindMs = if (remainingMs > RESUME_COUNTDOWN_MS) {
                     val liftProgress = 1f - (remainingMs - RESUME_COUNTDOWN_MS) / RESUME_LIFT_MS.toFloat()
@@ -474,10 +526,22 @@ class MainActivity : ComponentActivity() {
                 val travelMs = 2000f / game.noteSpeed
                 seats.forEachIndexed { lane, seat ->
                     drawLine(seatColors[seat].copy(alpha=.15f), Offset(width * lane, 0f), Offset(width * lane, size.height), 2f)
-                    drawLine(seatColors[seat], Offset(width * lane + 14, line), Offset(width * (lane + 1) - 14, line), 5f)
+                    drawLine(
+                        seatColors[seat],
+                        Offset(width * (lane + .04f), line),
+                        Offset(width * (lane + .96f), line),
+                        6.dp.toPx()
+                    )
                     game.notes.filter { it.seat == seat && !it.judged }.forEach { note ->
                         val y = line - (note.time - visualElapsed) / travelMs * line
-                        if (y in -24f..size.height) drawRoundRect(seatColors[seat], Offset(width * lane + width * .2f, y - 10), Size(width * .6f, 20f), CornerRadius(10f))
+                        if (y in -noteHeight..size.height + noteHeight) {
+                            drawRoundRect(
+                                seatColors[seat],
+                                Offset(width * (lane + .2f), y - noteHeight / 2),
+                                Size(width * .6f, noteHeight),
+                                CornerRadius(noteHeight / 2)
+                            )
+                        }
                     }
                 }
             }
@@ -486,24 +550,44 @@ class MainActivity : ComponentActivity() {
                     text = ((game.resumeRemainingMs + 999) / 1000).toString(),
                     modifier = Modifier.align(Alignment.Center)
                         .background(navy.copy(alpha = .92f), RoundedCornerShape(16.dp))
-                        .padding(horizontal = 32.dp, vertical = 8.dp),
-                    fontSize = 64.sp,
+                        .padding(horizontal = 36.dp, vertical = 10.dp),
+                    fontSize = 76.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            seats.forEach { seat ->
-                Button(onClick = { if(inputs.parked) game.hit(seat, SystemClock.elapsedRealtime()) }, enabled = game.running && inputs.parked,
-                    colors = ButtonDefaults.buttonColors(containerColor=seatColors[seat], contentColor=navy), modifier=Modifier.weight(1f).height(72.dp)) {
-                    Text("${seatIcons[seat]} ${seatNames[seat]}", fontSize=18.sp, fontWeight=FontWeight.Bold)
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val compact = maxWidth < 720.dp
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 12.dp)) {
+                seats.forEach { seat ->
+                    Button(
+                        onClick = { if (inputs.parked) game.hit(seat, SystemClock.elapsedRealtime()) },
+                        enabled = game.running && inputs.parked,
+                        colors = ButtonDefaults.buttonColors(containerColor = seatColors[seat], contentColor = navy),
+                        modifier = Modifier.weight(1f).heightIn(min = if (compact) 64.dp else 88.dp),
+                        contentPadding = PaddingValues(horizontal = if (compact) 4.dp else 12.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            "${seatIcons[seat]} ${seatNames[seat]}",
+                            fontSize = if (compact) 15.sp else 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedButton(onClick={ game.pause(); game.screen="home" }) { Text("로비로") }
-            OutlinedButton(onClick = { game.pause() }, enabled = game.running) {
-                Text(if (preparingResume) "재개 준비 중" else "잠깐 쉬기")
+            OutlinedButton(
+                onClick = { game.pause(); game.screen = "home" },
+                modifier = Modifier.heightIn(min = 54.dp)
+            ) { Text("로비로", fontSize = 17.sp) }
+            OutlinedButton(
+                onClick = { game.pause() },
+                enabled = game.running,
+                modifier = Modifier.heightIn(min = 54.dp)
+            ) {
+                Text(if (preparingResume) "재개 준비 중" else "잠깐 쉬기", fontSize = 17.sp)
             }
         }
     }
@@ -514,37 +598,58 @@ class MainActivity : ComponentActivity() {
             onDismissRequest = {}
         ) { modifier ->
             Surface(
-                modifier.padding(24.dp).widthIn(max = 420.dp).fillMaxWidth(),
+                modifier.padding(24.dp).widthIn(max = 520.dp).fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp), tonalElevation = 8.dp
             ) {
-                Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(
+                    Modifier.verticalScroll(rememberScrollState()).padding(28.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
                     StaggeredHeading(
                         "일시정지", if (inputs.parked) "준비되면 연주를 이어가세요." else "주차 상태가 확인되면 이어갈 수 있어요.",
-                        MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
+                        MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                        subtitleStyle = MaterialTheme.typography.bodyLarge
                     )
                     Button(
                         onClick = { if (inputs.parked) game.resume(SystemClock.elapsedRealtime()) },
                         enabled = inputs.parked,
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("이어가기") }
-                    OutlinedButton(onClick = { game.pause(); game.screen = "home" }, modifier = Modifier.fillMaxWidth()) {
-                        Text("로비로")
-                    }
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp)
+                    ) { Text("이어가기", fontSize = 18.sp) }
+                    OutlinedButton(
+                        onClick = { game.pause(); game.screen = "home" },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp)
+                    ) { Text("로비로", fontSize = 18.sp) }
                 }
             }
         }
     }
     @Composable private fun Result() {
-        Column(Modifier.fillMaxSize(), verticalArrangement=Arrangement.spacedBy(20.dp), horizontalAlignment=Alignment.CenterHorizontally) {
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             StaggeredHeading(
                 "우리 가족, 멋진 연주였어요!", "${game.song.title} · ${game.difficulty.label}",
-                MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
+                subtitleStyle = MaterialTheme.typography.titleLarge,
                 horizontalAlignment = Alignment.CenterHorizontally
             )
-            Text("${game.score}", fontSize=64.sp, color=Color(0xFFFFC857))
-            Text("함께 맞춘 노트 ${game.hits} / ${game.notes.size}    최고 콤보 ${game.best}", fontSize=22.sp)
-            Text(if (game.hits * 4 >= game.notes.size * 3) "환상의 가족 밴드 ★★★" else "다음 연주도 함께해요 ★", fontSize=22.sp)
-            Button(onClick={game.screen="home"}) { Text("다시 모이기") }
+            Text("${game.score}", fontSize = 84.sp, lineHeight = 92.sp, color = Color(0xFFFFC857))
+            Text(
+                "함께 맞춘 노트 ${game.hits} / ${game.notes.size}    최고 콤보 ${game.best}",
+                style = MaterialTheme.typography.headlineSmall,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                if (game.hits * 4 >= game.notes.size * 3) "환상의 가족 밴드 ★★★" else "다음 연주도 함께해요 ★",
+                style = MaterialTheme.typography.headlineSmall,
+                textAlign = TextAlign.Center
+            )
+            Button(
+                onClick = { game.screen = "home" },
+                modifier = Modifier.widthIn(min = 220.dp).heightIn(min = 64.dp)
+            ) { Text("다시 모이기", fontSize = 20.sp) }
         }
     }
 }

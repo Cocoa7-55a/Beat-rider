@@ -105,10 +105,10 @@ internal fun DrawnCheckbox(checked: Boolean, enabled: Boolean, onCheckedChange: 
     val colors = MaterialTheme.colorScheme
     val ink = if (enabled) colors.primary else colors.onSurface.copy(alpha = .38f)
     Box(
-        Modifier.size(48.dp).toggleable(checked, enabled = enabled, role = Role.Checkbox, onValueChange = onCheckedChange),
+        Modifier.size(54.dp).toggleable(checked, enabled = enabled, role = Role.Checkbox, onValueChange = onCheckedChange),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(Modifier.size(20.dp)) {
+        Canvas(Modifier.size(24.dp)) {
             val outline = 2.dp.toPx()
             val inset = outline / 2
             val corner = CornerRadius(3.dp.toPx())

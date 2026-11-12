@@ -38,9 +38,10 @@ internal fun VehicleSeatMap(
 ) {
     val selectedCount = active.count { it }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("▲  차량 앞쪽", color = diagramLabel, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        BoxWithConstraints(Modifier.widthIn(max = 330.dp).fillMaxWidth().aspectRatio(vehicleWidth / vehicleLength)) {
+        Text("▲  차량 앞쪽", color = diagramLabel, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        BoxWithConstraints(Modifier.widthIn(max = 400.dp).fillMaxWidth().aspectRatio(vehicleWidth / vehicleLength)) {
             VehicleOutline(Modifier.matchParentSize())
+            val textScale = (maxWidth.value / 330f).coerceIn(.8f, 1.22f)
             val buttonWidth = maxWidth * .235f
             val buttonHeight = maxHeight * .117f
             active.forEachIndexed { seat, selected ->
@@ -72,18 +73,18 @@ internal fun VehicleSeatMap(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    Text(seatIcons[seat], color = color, fontSize = 18.sp, lineHeight = 20.sp)
-                    Text(seatNames[seat], fontSize = 12.sp, lineHeight = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(seatIcons[seat], color = color, fontSize = (18 * textScale).sp, lineHeight = (20 * textScale).sp)
+                    Text(seatNames[seat], fontSize = (12 * textScale).sp, lineHeight = (15 * textScale).sp, fontWeight = FontWeight.Bold)
                     val status = when {
                         !selected -> "참가 안 함"
                         hasLightInput(seat) -> "독서등 + 터치"
                         else -> "터치로 참여"
                     }
-                    Text(status, color = if (selected) color else diagramLabel, fontSize = 11.sp, lineHeight = 14.sp)
+                    Text(status, color = if (selected) color else diagramLabel, fontSize = (11 * textScale).sp, lineHeight = (14 * textScale).sp)
                 }
             }
         }
-        Text("${selectedCount}명 선택 · 좌핸들 차량 기준", color = diagramLabel, fontSize = 13.sp)
+        Text("${selectedCount}명 선택 · 좌핸들 차량 기준", color = diagramLabel, fontSize = 16.sp)
     }
 }
 
