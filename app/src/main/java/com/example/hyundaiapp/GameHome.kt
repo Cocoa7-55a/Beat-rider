@@ -131,59 +131,56 @@ private fun LanePreview(noteSpeed: Float, modifier: Modifier) {
 
     val travelMs = BASE_NOTE_TRAVEL_MS / noteSpeed
     val shape = RoundedCornerShape(14.dp)
-    Column(modifier.raisedSurface().padding(30.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        Text("오늘의 리듬", color = RhythmColors.Muted, fontSize = 17.sp)
-        Row(
-            Modifier.weight(1f).fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            for (seat in seats) {
-                val hitTimes = hitTimesBySeat.getValue(seat)
-                Column(
-                    Modifier.weight(1f).fillMaxHeight(),
-                    verticalArrangement = Arrangement.spacedBy(20.dp)
+    Row(
+        modifier.raisedSurface().padding(30.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        for (seat in seats) {
+            val hitTimes = hitTimesBySeat.getValue(seat)
+            Column(
+                Modifier.weight(1f).fillMaxHeight(),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                Canvas(
+                    Modifier.weight(1f).fillMaxWidth().clip(shape).background(RhythmColors.Line)
                 ) {
-                    Canvas(
-                        Modifier.weight(1f).fillMaxWidth().clip(shape).background(RhythmColors.Line)
-                    ) {
-                        val elapsed = phase.longValue
-                        val horizonY = size.height * .06f
-                        val judgmentY = size.height * .90f
-                        val flash = previewHitFlash(hitTimes, elapsed, loopMs)
-                        val lineInset = size.width * .12f
-                        drawLine(
-                            RhythmColors.Blue.copy(alpha = .34f + .66f * flash),
-                            Offset(lineInset, judgmentY),
-                            Offset(size.width - lineInset, judgmentY),
-                            (2 + 2 * flash).dp.toPx(),
-                            cap = StrokeCap.Round
-                        )
-
-                        for (hitTime in hitTimes) {
-                            val timeUntilHit = (hitTime - elapsed + loopMs) % loopMs
-                            if (timeUntilHit > travelMs) continue
-                            val depth = projectNoteDepth(1f - timeUntilHit / travelMs)
-                            val scale = noteScaleAtDepth(depth)
-                            val y = horizonY + (judgmentY - horizonY) * depth
-                            val width = size.width * .76f * scale
-                            val height = minOf(21.dp.toPx(), size.height * .12f) * scale
-                            drawRoundRect(
-                                RhythmColors.Blue.copy(alpha = .62f + .38f * depth),
-                                Offset((size.width - width) / 2, y - height / 2),
-                                Size(width, height),
-                                CornerRadius(height / 2)
-                            )
-                        }
-                    }
-                    Box(
-                        Modifier.fillMaxWidth().height(46.dp)
-                            .insetSurface(shape).clip(shape)
-                            .drawBehind {
-                                val flash = previewHitFlash(hitTimes, phase.longValue, loopMs)
-                                if (flash > 0f) drawRect(RhythmColors.Ink.copy(alpha = flash))
-                            }
+                    val elapsed = phase.longValue
+                    val horizonY = size.height * .06f
+                    val judgmentY = size.height * .90f
+                    val flash = previewHitFlash(hitTimes, elapsed, loopMs)
+                    val lineInset = size.width * .12f
+                    drawLine(
+                        RhythmColors.Blue.copy(alpha = .34f + .66f * flash),
+                        Offset(lineInset, judgmentY),
+                        Offset(size.width - lineInset, judgmentY),
+                        (2 + 2 * flash).dp.toPx(),
+                        cap = StrokeCap.Round
                     )
+
+                    for (hitTime in hitTimes) {
+                        val timeUntilHit = (hitTime - elapsed + loopMs) % loopMs
+                        if (timeUntilHit > travelMs) continue
+                        val depth = projectNoteDepth(1f - timeUntilHit / travelMs)
+                        val scale = noteScaleAtDepth(depth)
+                        val y = horizonY + (judgmentY - horizonY) * depth
+                        val width = size.width * .76f * scale
+                        val height = minOf(21.dp.toPx(), size.height * .12f) * scale
+                        drawRoundRect(
+                            RhythmColors.Blue.copy(alpha = .62f + .38f * depth),
+                            Offset((size.width - width) / 2, y - height / 2),
+                            Size(width, height),
+                            CornerRadius(height / 2)
+                        )
+                    }
                 }
+                Box(
+                    Modifier.fillMaxWidth().height(46.dp)
+                        .insetSurface(shape).clip(shape)
+                        .drawBehind {
+                            val flash = previewHitFlash(hitTimes, phase.longValue, loopMs)
+                            if (flash > 0f) drawRect(RhythmColors.Ink.copy(alpha = flash))
+                        }
+                )
             }
         }
     }
