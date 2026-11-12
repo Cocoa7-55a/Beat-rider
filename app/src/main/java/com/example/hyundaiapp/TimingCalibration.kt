@@ -24,13 +24,14 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
-internal const val MAX_TIMING_OFFSET_MS = 200L
+internal const val MAX_TIMING_OFFSET_MS = 500L
 private const val CalibrationBeats = 8
 private const val MinimumSamples = 5
 private const val FirstBeatMs = 1500L
 private const val BeatIntervalMs = 1100L
-private const val SampleWindowMs = 250L
+private const val SampleWindowMs = MAX_TIMING_OFFSET_MS
 private const val NoteTravelMs = 800L
+private const val NoteExitMs = 250L
 
 internal class TimingTrial(private val startedAt: Long) {
     private val samples = mutableMapOf<Int, Long>()
@@ -138,7 +139,7 @@ internal fun TimingCalibrationPage(
                                     ) { Text(if (step > 0) "+$step" else step.toString()) }
                                 }
                             }
-                            Text("양수는 늦게 누르는 입력을 앞당겨 판정합니다.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("±${MAX_TIMING_OFFSET_MS}ms · 양수는 늦게 누르는 입력을 앞당겨 판정합니다.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             TextButton(onClick = { onOffsetChanged(0L) }, enabled = !measuring && offsetMs != 0L) {
                                 Text("0 ms로 초기화")
                             }
@@ -219,7 +220,7 @@ private fun CalibrationLane(trial: TimingTrial?, elapsed: Long) {
         drawLine(accent, Offset(left, line), Offset(right, line), 3.dp.toPx())
         val noteAt = trial?.let { active ->
             (0 until CalibrationBeats).map(active::beatTime)
-                .firstOrNull { elapsed in (it - NoteTravelMs)..(it + SampleWindowMs) }
+                .firstOrNull { elapsed in (it - NoteTravelMs)..(it + NoteExitMs) }
         }
         if (noteAt != null) {
             val y = line - (noteAt - elapsed).toFloat() / NoteTravelMs * line

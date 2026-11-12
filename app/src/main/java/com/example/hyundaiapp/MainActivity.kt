@@ -180,13 +180,15 @@ class MainActivity : ComponentActivity() {
                         ) {
                             Row(
                                 Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                horizontalArrangement = if (game.screen == "landing") Arrangement.End else Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                StaggeredHeading(
-                                    "FAMILY BEAT", "함께 만드는 우리 가족의 리듬",
-                                    MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black)
-                                )
+                                if (game.screen != "landing") {
+                                    StaggeredHeading(
+                                        "FAMILY BEAT", "함께 만드는 우리 가족의 리듬",
+                                        MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black)
+                                    )
+                                }
                                 Text(inputs.status, color = if (inputs.parked) Color(0xFF9DE5BD) else Color(0xFFFFC857))
                             }
                             AnimatedContent(

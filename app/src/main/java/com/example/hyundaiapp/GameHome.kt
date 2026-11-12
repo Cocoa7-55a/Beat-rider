@@ -48,7 +48,7 @@ internal fun GameHome(onPlay: () -> Unit, onTiming: () -> Unit) {
 private fun HomeActions(onPlay: () -> Unit, onTiming: () -> Unit, modifier: Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         StaggeredHeading(
-            "함께 타는 리듬", "1~4명이 각자의 자리에서 한 곡을 완성해요.",
+            "리듬타", "함께 만드는 우리 가족의 리듬",
             MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Black)
         )
         Button(

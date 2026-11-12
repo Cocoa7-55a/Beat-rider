@@ -147,6 +147,22 @@ class RhythmGameTest {
         assertEquals(80L, trial.offset())
     }
 
+    @Test fun automaticTimingAcceptsOffsetsAtBothFiveHundredMillisecondLimits() {
+        val start = 10000L
+        for (offset in listOf(-500L, 500L)) {
+            val trial = TimingTrial(start)
+            repeat(5) { index ->
+                val time = start + trial.beatTime(index) + offset
+                assertEquals(offset, trial.record(time))
+            }
+            assertEquals(offset, trial.offset())
+        }
+        val outside = TimingTrial(start)
+        val firstBeat = start + outside.beatTime(0)
+        assertNull(outside.record(firstBeat - 501))
+        assertNull(outside.record(firstBeat + 501))
+    }
+
     @Test fun storedTimingOffsetCombinesWithVehicleDelay() {
         val game = RhythmGame()
         game.timingOffsetMs = 160
