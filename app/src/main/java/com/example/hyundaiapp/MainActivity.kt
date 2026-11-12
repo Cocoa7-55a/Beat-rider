@@ -14,8 +14,6 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.core.updateTransition
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -25,10 +23,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -254,57 +248,60 @@ class MainActivity : ComponentActivity() {
                                 transitionSpec = { uiFade() }
                             ) { screen ->
                                 val visibilityScope = this
-                                Column(
-                                    Modifier.fillMaxSize().padding(24.dp),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Row(
-                                        Modifier.fillMaxWidth(),
-                                        horizontalArrangement = if (screen == "landing") Arrangement.End else Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                Box(Modifier.fillMaxSize()) {
+                                    if (screen == "play") PerformanceBackdrop(Modifier.matchParentSize())
+                                    Column(
+                                        Modifier.fillMaxSize().padding(24.dp),
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
                                     ) {
-                                        if (screen != "landing") {
-                                            Box(Modifier.weight(1f).padding(end = 12.dp)) {
-                                                BrandHeading(visibilityScope, expanded = false)
+                                        Row(
+                                            Modifier.fillMaxWidth(),
+                                            horizontalArrangement = if (screen == "landing") Arrangement.End else Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            if (screen != "landing") {
+                                                Box(Modifier.weight(1f).padding(end = 12.dp)) {
+                                                    BrandHeading(visibilityScope, expanded = false)
+                                                }
                                             }
-                                        }
-                                        Text(
-                                            inputs.status,
-                                            color = if (inputs.parked) Color(0xFF9DE5BD) else Color(0xFFFFC857),
-                                            style = if (screen == "landing") MaterialTheme.typography.bodyLarge else
-                                                MaterialTheme.typography.titleMedium
-                                        )
-                                    }
-                                    Box(Modifier.weight(1f).fillMaxWidth()) {
-                                        when (screen) {
-                                            "landing" -> GameHome(
-                                                onPlay = { pickingSong = true; game.screen = "home" },
-                                                onTiming = { openTiming("landing") }
-                                            ) {
-                                                BrandHeading(
-                                                    visibilityScope, expanded = true,
-                                                    animateEntrance = screenTransition.currentState == "landing" &&
-                                                        screenTransition.targetState == "landing"
-                                                )
-                                            }
-                                            "home" -> Home()
-                                            "timing" -> TimingCalibrationPage(
-                                                offsetMs = game.timingOffsetMs,
-                                                onOffsetChanged = ::applyTimingOffset,
-                                                canMeasure = inputs.parked && foreground && game.screen == "timing",
-                                                audioReady = calibrationAudioReady,
-                                                startAudio = ::startCalibrationAudio,
-                                                stopAudio = ::stopCalibrationAudio,
-                                                playCue = {
-                                                    if (calibrationAudioReady) tone?.startTone(ToneGenerator.TONE_PROP_BEEP, 65)
-                                                },
-                                                onBack = ::closeTiming
+                                            Text(
+                                                inputs.status,
+                                                color = if (inputs.parked) Color(0xFF9DE5BD) else Color(0xFFFFC857),
+                                                style = if (screen == "landing") MaterialTheme.typography.bodyLarge else
+                                                    MaterialTheme.typography.titleMedium
                                             )
-                                            "play" -> Column(
-                                                Modifier.fillMaxSize(),
-                                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                                            ) { Play() }
-                                            "result" -> Result()
+                                        }
+                                        Box(Modifier.weight(1f).fillMaxWidth()) {
+                                            when (screen) {
+                                                "landing" -> GameHome(
+                                                    onPlay = { pickingSong = true; game.screen = "home" },
+                                                    onTiming = { openTiming("landing") }
+                                                ) {
+                                                    BrandHeading(
+                                                        visibilityScope, expanded = true,
+                                                        animateEntrance = screenTransition.currentState == "landing" &&
+                                                            screenTransition.targetState == "landing"
+                                                    )
+                                                }
+                                                "home" -> Home()
+                                                "timing" -> TimingCalibrationPage(
+                                                    offsetMs = game.timingOffsetMs,
+                                                    onOffsetChanged = ::applyTimingOffset,
+                                                    canMeasure = inputs.parked && foreground && game.screen == "timing",
+                                                    audioReady = calibrationAudioReady,
+                                                    startAudio = ::startCalibrationAudio,
+                                                    stopAudio = ::stopCalibrationAudio,
+                                                    playCue = {
+                                                        if (calibrationAudioReady) tone?.startTone(ToneGenerator.TONE_PROP_BEEP, 65)
+                                                    },
+                                                    onBack = ::closeTiming
+                                                )
+                                                "play" -> Column(
+                                                    Modifier.fillMaxSize(),
+                                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                                ) { Play() }
+                                                "result" -> Result()
+                                            }
                                         }
                                     }
                                 }
@@ -591,53 +588,7 @@ class MainActivity : ComponentActivity() {
             )
         }
         val seats = game.active.indices.filter { game.active[it] }
-        Box(Modifier.weight(1f).fillMaxWidth().background(Color(0xFF171F35), RoundedCornerShape(16.dp))) {
-            Canvas(Modifier.fillMaxSize().clipToBounds()) {
-                val width = size.width / seats.size
-                val line = size.height * .82f
-                val noteHeight = 28.dp.toPx()
-                val remainingMs = game.resumeRemainingMs
-                val rewindMs = if (remainingMs > RESUME_COUNTDOWN_MS) {
-                    val liftProgress = 1f - (remainingMs - RESUME_COUNTDOWN_MS) / RESUME_LIFT_MS.toFloat()
-                    RESUME_COUNTDOWN_MS * FastOutSlowInEasing.transform(liftProgress)
-                } else {
-                    remainingMs.toFloat()
-                }
-                // Advance the visual clock at the same rate as gameplay while scoring stays paused.
-                val visualElapsed = game.elapsed - rewindMs
-                val travelMs = 2000f / game.noteSpeed
-                seats.forEachIndexed { lane, seat ->
-                    drawLine(seatColors[seat].copy(alpha=.15f), Offset(width * lane, 0f), Offset(width * lane, size.height), 2f)
-                    drawLine(
-                        seatColors[seat],
-                        Offset(width * (lane + .04f), line),
-                        Offset(width * (lane + .96f), line),
-                        6.dp.toPx()
-                    )
-                    game.notes.filter { it.seat == seat && !it.judged }.forEach { note ->
-                        val y = line - (note.time - visualElapsed) / travelMs * line
-                        if (y in -noteHeight..size.height + noteHeight) {
-                            drawRoundRect(
-                                seatColors[seat],
-                                Offset(width * (lane + .2f), y - noteHeight / 2),
-                                Size(width * .6f, noteHeight),
-                                CornerRadius(noteHeight / 2)
-                            )
-                        }
-                    }
-                }
-            }
-            if (game.resumeRemainingMs in 1..RESUME_COUNTDOWN_MS) {
-                Text(
-                    text = ((game.resumeRemainingMs + 999) / 1000).toString(),
-                    modifier = Modifier.align(Alignment.Center)
-                        .background(navy.copy(alpha = .92f), RoundedCornerShape(16.dp))
-                        .padding(horizontal = 36.dp, vertical = 10.dp),
-                    fontSize = 76.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
+        PerformanceStage(game, seats, Modifier.weight(1f).fillMaxWidth())
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val compact = maxWidth < 720.dp
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 12.dp)) {
