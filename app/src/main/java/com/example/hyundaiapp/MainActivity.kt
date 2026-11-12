@@ -577,7 +577,10 @@ class MainActivity : ComponentActivity() {
             AnimatedContent(
                 targetState = message,
                 modifier = Modifier.weight(1f),
-                transitionSpec = { uiFade() },
+                transitionSpec = {
+                    // Judgments change several times a second: swap instantly, fade only status messages.
+                    if (Judgment.entries.any { it.name == targetState }) uiInstant() else uiFade()
+                },
                 label = "Judgment feedback fade"
             ) { feedback ->
                 if (feedback.isNotEmpty()) {
@@ -592,7 +595,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
             if (game.combo > 0) {
-                RollingNumber("${game.combo} COMBO", style = MaterialTheme.typography.titleLarge, color = Color(0xFFFFC857))
+                Text(
+                    "${game.combo} COMBO", style = MaterialTheme.typography.titleLarge, color = Color(0xFFFFC857),
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                )
             }
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
@@ -615,7 +621,8 @@ class MainActivity : ComponentActivity() {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 12.dp)) {
                 seats.forEach { seat ->
                     RhythmButton(
-                        onClick = { if (inputs.parked) game.hit(seat, SystemClock.elapsedRealtime()) },
+                        onClick = {},
+                        onPress = { at -> if (inputs.parked) game.hit(seat, at) },
                         enabled = game.running && inputs.parked,
                         color = lerp(RhythmColors.Panel, seatColors[seat], .68f),
                         textColor = RhythmColors.Ink,

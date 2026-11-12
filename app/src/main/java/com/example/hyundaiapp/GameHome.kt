@@ -4,7 +4,6 @@ import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.BoundsTransform
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
-import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -103,8 +102,8 @@ internal fun SharedTransitionScope.BrandHeading(
             sharedContentState = rememberSharedContentState(key = "rhythm-title"),
             animatedVisibilityScope = visibilityScope,
             boundsTransform = BoundsTransform { _, _ -> tween(340, easing = LinearOutSlowInEasing) },
-            enter = fadeIn(tween(250, easing = LinearOutSlowInEasing)),
-            exit = fadeOut(tween(220, easing = FastOutLinearInEasing)),
+            enter = fadeIn(tween(250, easing = UiEase)),
+            exit = fadeOut(tween(220, easing = UiEase)),
             resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(ContentScale.FillBounds)
         ),
         animateEntrance = animateEntrance

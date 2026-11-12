@@ -51,14 +51,16 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 private const val EnterMs = 280
 private const val ExitMs = 220
-private val EnterEase = LinearOutSlowInEasing
-private val ExitEase = FastOutLinearInEasing
+// Strong ease-out for both directions: exits must start fast too, never ease-in.
+internal val UiEase = CubicBezierEasing(0.23f, 1f, 0.32f, 1f)
 
 internal fun uiFade() = ContentTransform(
-    targetContentEnter = fadeIn(tween(EnterMs, easing = EnterEase)),
-    initialContentExit = fadeOut(tween(ExitMs, easing = ExitEase)),
+    targetContentEnter = fadeIn(tween(EnterMs, easing = UiEase)),
+    initialContentExit = fadeOut(tween(ExitMs, easing = UiEase)),
     sizeTransform = null
 )
+
+internal fun uiInstant() = ContentTransform(EnterTransition.None, ExitTransition.None, sizeTransform = null)
 
 @Composable
 internal fun StaggeredHeading(
@@ -74,10 +76,10 @@ internal fun StaggeredHeading(
     key(title) {
         var visible by remember { mutableStateOf(!animateEntrance) }
         val titleAlpha by animateFloatAsState(
-            if (visible) 1f else 0f, tween(EnterMs, easing = EnterEase), label = "Title entrance"
+            if (visible) 1f else 0f, tween(EnterMs, easing = UiEase), label = "Title entrance"
         )
         val subtitleAlpha by animateFloatAsState(
-            if (visible) 1f else 0f, tween(EnterMs, delayMillis = 70, easing = EnterEase),
+            if (visible) 1f else 0f, tween(EnterMs, delayMillis = 70, easing = UiEase),
             label = "Subtitle entrance"
         )
         LaunchedEffect(Unit) { visible = true }
@@ -187,15 +189,15 @@ internal fun MotionDialog(
                 Box(
                     Modifier.matchParentSize()
                         .animateEnterExit(
-                            enter = fadeIn(tween(EnterMs, easing = EnterEase)),
-                            exit = fadeOut(tween(ExitMs, easing = ExitEase))
+                            enter = fadeIn(tween(EnterMs, easing = UiEase)),
+                            exit = fadeOut(tween(ExitMs, easing = UiEase))
                         )
                         .background(Color.Black.copy(alpha = .58f))
                 )
-                val enter = if (fromBottom) slideInVertically(tween(EnterMs, easing = EnterEase)) { it }
-                    else scaleIn(tween(EnterMs, easing = EnterEase), initialScale = .9f) + fadeIn(tween(EnterMs, easing = EnterEase))
-                val exit = if (fromBottom) slideOutVertically(tween(ExitMs, easing = ExitEase)) { it }
-                    else scaleOut(tween(ExitMs, easing = ExitEase), targetScale = .9f) + fadeOut(tween(ExitMs, easing = ExitEase))
+                val enter = if (fromBottom) slideInVertically(tween(EnterMs, easing = UiEase)) { it }
+                    else scaleIn(tween(EnterMs, easing = UiEase), initialScale = .9f) + fadeIn(tween(EnterMs, easing = UiEase))
+                val exit = if (fromBottom) slideOutVertically(tween(ExitMs, easing = UiEase)) { it }
+                    else scaleOut(tween(ExitMs, easing = UiEase), targetScale = .9f) + fadeOut(tween(ExitMs, easing = UiEase))
                 content(
                     Modifier.align(if (fromBottom) Alignment.BottomCenter else Alignment.Center)
                         .animateEnterExit(enter, exit)
@@ -212,8 +214,8 @@ internal fun SlideSnackbar(notice: UiNotice?, modifier: Modifier = Modifier) {
     AnimatedContent(
         targetState = notice, modifier = modifier, contentAlignment = Alignment.BottomCenter,
         transitionSpec = {
-            (slideInVertically(tween(EnterMs, easing = EnterEase)) { it } togetherWith
-                slideOutVertically(tween(ExitMs, easing = ExitEase)) { it }).using(null)
+            (slideInVertically(tween(EnterMs, easing = UiEase)) { it } togetherWith
+                slideOutVertically(tween(ExitMs, easing = UiEase)) { it }).using(null)
         },
         label = "Snackbar slide"
     ) { item ->
@@ -243,7 +245,7 @@ internal fun FadeToast(notice: UiNotice?, modifier: Modifier = Modifier) {
     }
 }
 
-/** Odometer text: each changed character rolls vertically, staggered from the right. */
+/** Odometer text: each changed character rolls vertically. */
 @Composable
 internal fun RollingNumber(
     text: String,
@@ -258,8 +260,8 @@ internal fun RollingNumber(
                 AnimatedContent(
                     targetState = char,
                     transitionSpec = {
-                        val slide = tween<IntOffset>(260, fromEnd * 35, EnterEase)
-                        val fade = tween<Float>(200, fromEnd * 35)
+                        val slide = tween<IntOffset>(260, easing = UiEase)
+                        val fade = tween<Float>(200)
                         val up = targetState > initialState
                         (slideInVertically(slide) { if (up) it else -it } + fadeIn(fade)) togetherWith
                             (slideOutVertically(slide) { if (up) -it else it } + fadeOut(fade))

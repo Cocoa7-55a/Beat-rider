@@ -159,9 +159,10 @@ internal fun TimingCalibrationPage(
                                 Text("유효한 탭 $sampleCount / $CalibrationBeats")
                                 Text(tapFeedback ?: "노트를 기다려 주세요.", color = MaterialTheme.colorScheme.primary)
                                 RhythmButton(
-                                    onClick = {
+                                    onClick = {},
+                                    onPress = { at ->
                                         val active = trial ?: return@RhythmButton
-                                        val error = active.record(SystemClock.elapsedRealtime())
+                                        val error = active.record(at)
                                         sampleCount = active.sampleCount
                                         if (error != null) tapFeedback = "입력 오차 ${signedMs(error)}"
                                     },

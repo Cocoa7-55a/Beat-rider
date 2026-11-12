@@ -79,9 +79,10 @@ private fun PlayGauge(label: String, value: Int, maximum: Int, color: Color, mod
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(label, style = MaterialTheme.typography.labelLarge, color = color)
-            RollingNumber(
+            Text(
                 "$value / $maximum",
-                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = Color.White
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = Color.White,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
             )
         }
         LinearProgressIndicator(

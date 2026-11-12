@@ -1,7 +1,14 @@
 package com.example.hyundaiapp
 
+import android.os.SystemClock
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -118,11 +125,33 @@ internal fun RhythmButton(
     textColor: Color = if (primary) Color.White else RhythmColors.Ink,
     @Suppress("UNUSED_PARAMETER") overStage: Boolean = false,
     contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
+    onPress: ((Long) -> Unit)? = null,
     content: @Composable RowScope.() -> Unit
 ) {
+    // Timing-critical buttons fire on touch-down, stamped with the event's own time (elapsedRealtime base).
+    // onClick stays as the fallback for TalkBack/keyboard, which have no touch-down.
+    val press by rememberUpdatedState(onPress)
+    val touched = remember { booleanArrayOf(false) }
+    val pressInput = if (onPress != null && enabled) Modifier.pointerInput(Unit) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            touched[0] = true
+            press?.invoke(SystemClock.elapsedRealtime() - (SystemClock.uptimeMillis() - down.uptimeMillis))
+        }
+    } else Modifier
+    val click = {
+        when {
+            onPress == null -> onClick()
+            touched[0] -> { touched[0] = false }
+            else -> onPress(SystemClock.elapsedRealtime())
+        }
+    }
     val interactions = remember { MutableInteractionSource() }
     val pressed by interactions.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) .97f else 1f, tween(160), label = "Button press")
+    // Press snaps instantly (rhythm input must feel immediate); release eases back.
+    val scale by animateFloatAsState(
+        if (pressed) .97f else 1f, if (pressed) snap() else tween(160, easing = UiEase), label = "Button press"
+    )
     // Black buttons flood blue while held; white and tinted ones just darken.
     val fill by animateColorAsState(
         when {
@@ -131,14 +160,14 @@ internal fun RhythmButton(
             color == RhythmColors.Ink -> RhythmColors.Blue
             else -> lerp(color, Color.Black, .12f)
         },
-        tween(180), label = "Button fill"
+        if (pressed) snap() else tween(180, easing = UiEase), label = "Button fill"
     )
     val surface = if (enabled && color == RhythmColors.Inset)
         Modifier.insetSurface(ButtonShape, fill).border(1.dp, RhythmColors.Line, ButtonShape)
     else Modifier.background(fill, ButtonShape)
     Button(
-        onClick = onClick,
-        modifier = modifier.graphicsLayer { scaleX = scale; scaleY = scale }.then(surface).focusRing(ButtonShape),
+        onClick = click,
+        modifier = modifier.graphicsLayer { scaleX = scale; scaleY = scale }.then(surface).focusRing(ButtonShape).then(pressInput),
         enabled = enabled,
         shape = ButtonShape,
         colors = ButtonDefaults.buttonColors(
