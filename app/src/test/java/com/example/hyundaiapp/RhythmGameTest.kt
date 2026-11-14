@@ -138,7 +138,9 @@ class RhythmGameTest {
         assertEquals(100, game.score)
     }
     @Test fun positiveLightOffsetDoesNotExpireNoteBeforeDelayedInput() {
-        val game = readyGame(); game.offsetMs = 300; game.start(0)
+        val game = readyGame()
+        game.setSeatOffset(0, TimingInput.READING_LIGHT, 300)
+        game.start(0, readingLightSeats = setOf(0))
         game.tickAtSongTime(4500); game.hit(0, 4500, true)
         assertEquals(100, game.score)
     }
@@ -349,12 +351,71 @@ class RhythmGameTest {
         assertNull(outside.record(firstBeat + 501))
     }
 
+    @Test fun seatCalibrationOnlyUsesTheSelectedSeatAndInput() {
+        val start = 10000L
+        val target = TimingTarget(1, TimingInput.READING_LIGHT)
+        val game = readyGame()
+        game.setSeatOffset(1, TimingInput.READING_LIGHT, 210)
+        game.setSeatOffset(1, TimingInput.TOUCH, 25)
+        game.setSeatOffset(2, TimingInput.READING_LIGHT, 55)
+        val trial = SeatTimingTrial(target, start, audioOffsetMs = 30)
+
+        repeat(8) { index ->
+            val at = start + trial.timing.beatTime(index)
+            trial.record(TimingTarget(2, TimingInput.READING_LIGHT), at)
+            trial.record(TimingTarget(1, TimingInput.TOUCH), at)
+        }
+        assertEquals(0, trial.sampleCount)
+        assertNull(trial.offset())
+        repeat(4) { index ->
+            trial.record(target, start + trial.timing.beatTime(index) + 150)
+        }
+        assertNull(trial.offset())
+        assertEquals(210L, game.seatOffset(1, TimingInput.READING_LIGHT))
+
+        trial.record(target, start + trial.timing.beatTime(4) + 150)
+        val offset = requireNotNull(trial.offset())
+        game.setSeatOffset(target.seat, target.source, offset)
+        assertEquals(120L, game.seatOffset(1, TimingInput.READING_LIGHT))
+        assertEquals(25L, game.seatOffset(1, TimingInput.TOUCH))
+        assertEquals(55L, game.seatOffset(2, TimingInput.READING_LIGHT))
+    }
+
+    @Test fun gameplayUsesEachSeatsOwnOffsetAndTheDriverOffsetForAllSoloLanes() {
+        val game = readyGame()
+        game.setSeatOffset(0, TimingInput.TOUCH, 280)
+        game.setSeatOffset(1, TimingInput.READING_LIGHT, 300)
+        game.setSeatOffset(3, TimingInput.TOUCH, 500)
+        game.start(0, readingLightSeats = setOf(1))
+        val first = game.notes[0]
+        val second = game.notes[1]
+        game.tickAtSongTime(first.time + 280)
+        game.hit(first.lane, first.time + 280)
+        assertEquals(Judgment.PERFECT, game.laneJudge[0]?.judgment)
+        game.tickAtSongTime(second.time + 300)
+        game.hit(second.lane, second.time + 300, vehicle = true)
+        assertEquals(Judgment.PERFECT, game.laneJudge[1]?.judgment)
+
+        val third = game.notes[2]
+        assertEquals(2, third.lane)
+        game.tickAtSongTime(third.time + game.window + 1)
+        assertEquals(Judgment.MISS, game.laneJudge[2]?.judgment)
+
+        game.resetReadiness()
+        game.setSeatReady(0, true)
+        game.start(0)
+        val soloNote = game.notes.first { it.lane == 3 }
+        game.tickAtSongTime(soloNote.time + 280)
+        game.hit(soloNote.lane, soloNote.time + 280)
+        assertEquals(Judgment.PERFECT, game.laneJudge[3]?.judgment)
+    }
+
     @Test fun timingOffsetSyncsAudioTimelineAndVehicleCompensatesInput() {
         val game = readyGame()
         game.song = RhythmSong.TWINKLE
         game.timingOffsetMs = 150
-        game.offsetMs = 200
-        game.start(0)
+        game.setSeatOffset(1, TimingInput.READING_LIGHT, 200)
+        game.start(0, readingLightSeats = setOf(1))
 
         // Recorded song audio clock is shifted by timingOffsetMs (countInMs = 2400):
         // 2400 + 1950 - 150 = 4200ms

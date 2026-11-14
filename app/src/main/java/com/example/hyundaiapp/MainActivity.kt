@@ -57,7 +57,9 @@ class MainActivity : ComponentActivity() {
 
     private fun onReadingLightChanged(seat: Int, state: LightState, receivedAt: Long) {
         if (!foreground) return
-        if (showingSeatSetup && receivedAt >= seatSetupSince) {
+        if (game.screen == "timing" && (state == LightState.ON || state == LightState.OFF)) {
+            recordCalibrationInput(TimingTarget(seat, TimingInput.READING_LIGHT), receivedAt)
+        } else if (showingSeatSetup && receivedAt >= seatSetupSince) {
             when (state) {
                 LightState.ON -> game.setSeatReady(seat, true)
                 LightState.OFF -> game.setSeatReady(seat, false)
@@ -69,14 +71,19 @@ class MainActivity : ComponentActivity() {
     }
 
     private var foreground by mutableStateOf(false)
-    private var calibrationAudioReady by mutableStateOf(false)
+    private var calibrationTrial by mutableStateOf<SeatTimingTrial?>(null)
     private var timingReturnScreen = "landing"
     private val timingPreferences by lazy { getSharedPreferences("timing", MODE_PRIVATE) }
 
-    private fun applyTimingOffset(offset: Long) {
-        val value = offset.coerceIn(-MAX_TIMING_OFFSET_MS, MAX_TIMING_OFFSET_MS)
-        game.timingOffsetMs = value
-        timingPreferences.edit().putLong("offset_ms", value).apply()
+    private fun saveSeatOffset(target: TimingTarget, offset: Long) {
+        game.setSeatOffset(target.seat, target.source, offset)
+        timingPreferences.edit()
+            .putLong(target.preferenceKey, game.seatOffset(target.seat, target.source))
+            .apply()
+    }
+
+    private fun recordCalibrationInput(target: TimingTarget, at: Long) {
+        if (foreground && inputs.parked && game.screen == "timing") calibrationTrial?.record(target, at)
     }
 
     private fun openTiming(returnScreen: String) {
@@ -84,21 +91,45 @@ class MainActivity : ComponentActivity() {
         game.screen = "timing"
     }
 
-    private fun startCalibrationAudio(): Boolean {
+    private fun startCalibration(target: TimingTarget): Boolean {
         if (!foreground || !inputs.parked || !stickSoundReady || game.screen != "timing") return false
-        calibrationAudioReady = audioManager.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-        return calibrationAudioReady
+        if (target.source == TimingInput.READING_LIGHT && !inputs.supported[target.seat]) return false
+        if (calibrationTrial != null || audioManager.requestAudioFocus(focusRequest) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+            return false
+        }
+        calibrationTrial = SeatTimingTrial(target, SystemClock.elapsedRealtime(), game.timingOffsetMs)
+        return true
     }
 
-    private fun stopCalibrationAudio() {
-        if (!calibrationAudioReady) return
-        calibrationAudioReady = false
+    private fun stopCalibration() {
+        if (calibrationTrial == null) return
+        calibrationTrial = null
         stopStickSound()
         audioManager.abandonAudioFocusRequest(focusRequest)
     }
 
+    private fun finishCalibration(trial: SeatTimingTrial): String {
+        if (calibrationTrial !== trial || !foreground || !inputs.parked || game.screen != "timing" ||
+            (trial.target.source == TimingInput.READING_LIGHT && !inputs.supported[trial.target.seat])
+        ) {
+            return "측정이 중단됐어요. 이전 값을 유지했어요."
+        }
+
+        val measured = trial.offset()
+        val result = when {
+            measured != null -> {
+                saveSeatOffset(trial.target, measured)
+                "자동 보정 ${signedMs(measured)} 적용 완료"
+            }
+            trial.sampleCount == 0 -> "입력이 없어 이전 값을 유지했어요."
+            else -> "유효한 입력이 ${MIN_TIMING_SAMPLES}회 미만이라 이전 값을 유지했어요."
+        }
+        stopCalibration()
+        return result
+    }
+
     private fun closeTiming() {
-        stopCalibrationAudio()
+        stopCalibration()
         seatSetupSince = SystemClock.elapsedRealtime()
         game.screen = timingReturnScreen
     }
@@ -154,7 +185,8 @@ class MainActivity : ComponentActivity() {
             recordingFailed(error.toString())
             return
         }
-        game.start(SystemClock.elapsedRealtime(), laneIntroMs = LANE_INTRO_MS)
+        val lightSeats = inputs.verified.indices.filter { inputs.experimental && inputs.verified[it] }.toSet()
+        game.start(SystemClock.elapsedRealtime(), laneIntroMs = LANE_INTRO_MS, readingLightSeats = lightSeats)
     }
 
     private fun releaseRecording() {
@@ -228,7 +260,7 @@ class MainActivity : ComponentActivity() {
             .setOnAudioFocusChangeListener { change ->
                 if (change != AudioManager.AUDIOFOCUS_GAIN) {
                     audioFocused = false
-                    stopCalibrationAudio()
+                    stopCalibration()
                     pauseGame()
                 }
             }.build()
@@ -247,12 +279,18 @@ class MainActivity : ComponentActivity() {
         availableSongs.firstOrNull()?.let { game.song = it }
         game.timingOffsetMs = timingPreferences.getLong("offset_ms", 0L)
             .coerceIn(-MAX_TIMING_OFFSET_MS, MAX_TIMING_OFFSET_MS)
+        for (seat in seatNames.indices) {
+            for (source in TimingInput.entries) {
+                val target = TimingTarget(seat, source)
+                game.setSeatOffset(seat, source, timingPreferences.getLong(target.preferenceKey, 0L))
+            }
+        }
         inputs = VehicleInputs(this, ::onReadingLightChanged, {
             if (game.running || game.resumeRemainingMs > 0) {
                 notice = UiNotice("주차 상태가 바뀌어 연주를 멈췄어요.")
             }
             pauseGame()
-            stopCalibrationAudio()
+            stopCalibration()
         })
         setContent {
             RhythmTheme {
@@ -334,15 +372,16 @@ class MainActivity : ComponentActivity() {
                                                 }
                                                 "home" -> Home()
                                                 "timing" -> TimingCalibrationPage(
-                                                    offsetMs = game.timingOffsetMs,
-                                                    onOffsetChanged = ::applyTimingOffset,
+                                                    seatOffset = game::seatOffset,
+                                                    onOffsetChanged = ::saveSeatOffset,
                                                     canMeasure = inputs.parked && foreground && game.screen == "timing",
-                                                    audioReady = calibrationAudioReady,
-                                                    startAudio = ::startCalibrationAudio,
-                                                    stopAudio = ::stopCalibrationAudio,
-                                                    playCue = {
-                                                        if (calibrationAudioReady) playStickSound()
-                                                    },
+                                                    lightSupported = { inputs.supported[it] },
+                                                    trial = calibrationTrial,
+                                                    onStart = ::startCalibration,
+                                                    onFinish = ::finishCalibration,
+                                                    onCancel = ::stopCalibration,
+                                                    onTouch = { seat, at -> recordCalibrationInput(TimingTarget(seat, TimingInput.TOUCH), at) },
+                                                    playCue = { if (calibrationTrial != null) playStickSound() },
                                                     onBack = ::closeTiming
                                                 )
                                                 "play" -> Play()
@@ -378,7 +417,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         foreground = false
-        stopCalibrationAudio()
+        stopCalibration()
         pauseGame()
         super.onPause()
     }
@@ -604,8 +643,7 @@ class MainActivity : ComponentActivity() {
                         Text("자리 확인")
                     }
                 }
-                Text("독서등 지연 보정 ${game.offsetMs} ms · ${if(game.practice) "연습 ±350" else "기본 ±220"} ms 판정")
-                Slider(game.offsetMs.toFloat(), { game.offsetMs = it.toLong() }, valueRange = -300f..300f)
+                Text("독서등 지연은 타이밍 보정 화면에서 좌석별로 조절할 수 있어요. · ${if (game.practice) "연습 ±350" else "기본 ±220"} ms 판정")
                 Text("아래 시간은 앱 수신 시각과 이벤트 간격입니다. 물리 스위치부터의 지연은 별도 측정이 필요해요.", fontSize = 14.sp)
                 inputs.logs.forEach { Text(it, fontSize = 14.sp, color = RhythmColors.Muted) }
             }
