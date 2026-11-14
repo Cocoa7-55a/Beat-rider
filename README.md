@@ -1,11 +1,11 @@
-# 박자 탈래 (Beat Rider) 가족 협동 리듬게임
+# 리듬 탈래? 가족 협동 리듬게임
 
 Pleos Connect 차량 화면에서 1~4명이 자리별 레인을 나눠 연주하는 주차 전용 협동 리듬게임입니다. Kotlin / Jetpack Compose로 만들었습니다.
 
 | | |
 | --- | --- |
 | 대상 | Pleos Connect v2.1.0 (API 34), Vehicle SDK 2.3.2 |
-| 패키지 | `com.beatrider.app` (앱 이름 `박자 탈래`) |
+| 패키지 | `com.beatrider.app` (앱 이름 `리듬 탈래?`) |
 | 입력 | 화면 터치(기본), 독서등 신호(실험 모드) |
 | 안전 | 기어 P와 주행 제한 해제가 확인될 때만 연주. 차량 상태를 바꾸는 호출 없음(읽기 전용) |
 | 검증 | 에뮬레이터 터치 연주 · [검증 기록과 미확인 항목](docs/verification.md) · [프로젝트 현황](docs/project-status.md) |
@@ -108,7 +108,7 @@ adb forward tcp:8088 tcp:8088
 ```
 
 * **Virtual Console**: http://localhost:8088/
-* 패키지명: `com.beatrider.app` (앱 라벨·게임 내 브랜드명: `박자 탈래`)
+* 패키지명: `com.beatrider.app` (앱 라벨·게임 내 브랜드명: `리듬 탈래?`)
 * 차량 권한: 읽기용 `pleos.car.permission.CAR_LIGHTS`, `pleos.car.permission.CAR_DRIVE`
 
 ---

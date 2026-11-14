@@ -25,5 +25,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "BeatRider"
+rootProject.name = "리듬 탈래"
 include(":app")

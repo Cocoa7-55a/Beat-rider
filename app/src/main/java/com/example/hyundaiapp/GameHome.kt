@@ -29,6 +29,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -118,7 +119,7 @@ internal fun SharedTransitionScope.BrandHeading(
 ) {
     val typography = MaterialTheme.typography
     StaggeredHeading(
-        title = "박자 탈래",
+        title = stringResource(R.string.app_name),
         subtitle = "함께 만드는 우리 가족의 리듬",
         titleStyle = if (expanded) typography.displayLarge.copy(
             fontSize = HomeLayout.ExpandedTitleSize,
