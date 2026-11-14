@@ -209,14 +209,9 @@ class MainActivity : ComponentActivity() {
         game.screen = "home"
     }
 
-    private fun playSongBeat(beat: Int) {
-        if (audioFocused) playStickSound(accented = beat == 0)
-    }
-
-    private fun playStickSound(accented: Boolean = false) {
+    private fun playStickSound() {
         if (!stickSoundReady) return
-        val volume = if (accented) 1f else .9f
-        stickStreamId = stickPool.play(stickSoundId, volume, volume, 1, 0, if (accented) .92f else 1f)
+        stickStreamId = stickPool.play(stickSoundId, .9f, .9f, 1, 0, 1f)
     }
 
     private fun stopStickSound() {
@@ -275,7 +270,9 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     while (true) {
                         val position = recordingPosition()
-                        game.tick(SystemClock.elapsedRealtime(), position, ::playSongBeat)
+                        game.tick(SystemClock.elapsedRealtime(), position) {
+                            if (audioFocused) playStickSound()
+                        }
                         delay(16)
                     }
                 }
