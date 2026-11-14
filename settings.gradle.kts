@@ -25,5 +25,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "HyundaiApp"
+rootProject.name = "BeatRider"
 include(":app")

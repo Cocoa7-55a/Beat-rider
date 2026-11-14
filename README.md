@@ -1,6 +1,6 @@
-# Beat Rider — 박자 탈래 가족 협동 리듬게임
+# 박자 탈래 (Beat Rider) 가족 협동 리듬게임
 
-기존 HyundaiApp의 Kotlin / Jetpack Compose 프로젝트에 구현한 주차 전용 협동 리듬게임 MVP입니다.  
+Kotlin / Jetpack Compose로 만든 주차 전용 협동 리듬게임 MVP입니다.  
 Vehicle SDK 2.3.2, Pleos Connect v2.1.0 에뮬레이터에서 검증했습니다.
 
 ---

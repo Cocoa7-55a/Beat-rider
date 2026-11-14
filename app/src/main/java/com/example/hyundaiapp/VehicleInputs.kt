@@ -32,7 +32,7 @@ class VehicleInputs(
     private var uxSafe = false
     var parked by mutableStateOf(false)
     var status by mutableStateOf("주차 상태 확인 중")
-    var experimental by mutableStateOf(false)
+    var experimental by mutableStateOf(true)
     val supported = mutableStateListOf(false, false, false, false)
     val changed = mutableStateListOf(false, false, false, false)
     val verified = mutableStateListOf(false, false, false, false)

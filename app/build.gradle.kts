@@ -11,7 +11,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.hyundaiapp"
+        applicationId = "com.beatrider.app"
         minSdk = 28
         targetSdk = 37
         versionCode = 1

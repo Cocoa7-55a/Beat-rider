@@ -112,7 +112,7 @@ class MainActivity : ComponentActivity() {
         diagnosticsOpen = false
         seatSetupSince = SystemClock.elapsedRealtime()
         if (inputs.experimental != experimentalBeforeDiagnostics) {
-            notice = UiNotice(if (inputs.experimental) "독서등 실험 모드를 켰습니다." else "독서등 실험 모드를 껐습니다.")
+            notice = UiNotice(if (inputs.experimental) "독서등 연주를 켰습니다." else "독서등 연주를 껐습니다. 화면 버튼으로만 연주합니다.")
         }
     }
     private val game = RhythmGame { android.util.Log.i("FamilyBeat", it) }
@@ -578,7 +578,7 @@ class MainActivity : ComponentActivity() {
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Switch(inputs.experimental, { inputs.experimental = it })
-                        Text("독서등 실험 모드")
+                        Text("독서등으로 연주")
                     }
                 }
                 Text("각 자리의 독서등을 켰다 꺼 주세요. 변화가 확인되면 해당 자리의 연결을 확인하세요. 좌석은 좌핸들 차량 기준입니다.")
