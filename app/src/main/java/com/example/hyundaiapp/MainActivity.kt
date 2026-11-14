@@ -5,7 +5,7 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaPlayer
-import android.media.ToneGenerator
+import android.media.SoundPool
 import android.os.Bundle
 import android.os.SystemClock
 import androidx.activity.ComponentActivity
@@ -85,7 +85,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startCalibrationAudio(): Boolean {
-        if (!foreground || !inputs.parked || tone == null || game.screen != "timing") return false
+        if (!foreground || !inputs.parked || !stickSoundReady || game.screen != "timing") return false
         calibrationAudioReady = audioManager.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
         return calibrationAudioReady
     }
@@ -93,7 +93,7 @@ class MainActivity : ComponentActivity() {
     private fun stopCalibrationAudio() {
         if (!calibrationAudioReady) return
         calibrationAudioReady = false
-        tone?.stopTone()
+        stopStickSound()
         audioManager.abandonAudioFocusRequest(focusRequest)
     }
 
@@ -116,8 +116,11 @@ class MainActivity : ComponentActivity() {
     }
     private val game = RhythmGame { android.util.Log.i("FamilyBeat", it) }
     private lateinit var inputs: VehicleInputs
-    private var tone: ToneGenerator? = null
-    private var availableSongs by mutableStateOf(listOf(RhythmSong.FAMILY_BEAT))
+    private lateinit var stickPool: SoundPool
+    private var stickSoundId = 0
+    private var stickSoundReady by mutableStateOf(false)
+    private var stickStreamId = 0
+    private var availableSongs by mutableStateOf(emptyList<RhythmSong>())
     private var recording: MediaPlayer? = null
     private var recordingReady = false
     private var recordingPlaying = false
@@ -128,29 +131,28 @@ class MainActivity : ComponentActivity() {
         .build()
 
     private fun startGame() {
-        if (!showingSeatSetup || !inputs.parked || !game.hasReadySeats) return
+        if (!showingSeatSetup || !inputs.parked || !game.hasReadySeats || game.song !in availableSongs) return
         releaseRecording()
-        val asset = game.song.recordingAsset
-        if (asset != null) {
-            val player = MediaPlayer()
-            recording = player
-            player.setAudioAttributes(gameAudioAttributes)
-            player.setOnPreparedListener { recordingReady = true }
-            player.setOnCompletionListener {
+        val player = MediaPlayer()
+        recording = player
+        player.setAudioAttributes(gameAudioAttributes)
+        player.setOnPreparedListener { if (it === recording) recordingReady = true }
+        player.setOnCompletionListener {
+            if (it === recording) {
                 recordingComplete = true
                 recordingPlaying = false
             }
-            player.setOnErrorListener { _, what, extra ->
-                recordingFailed("MediaPlayer error $what/$extra")
-                true
-            }
-            try {
-                assets.openFd(asset).use { player.setDataSource(it) }
-                player.prepareAsync()
-            } catch (error: IOException) {
-                recordingFailed(error.toString())
-                return
-            }
+        }
+        player.setOnErrorListener { source, what, extra ->
+            if (source === recording) recordingFailed("MediaPlayer error $what/$extra")
+            true
+        }
+        try {
+            assets.openFd(game.song.recordingAsset).use { player.setDataSource(it) }
+            player.prepareAsync()
+        } catch (error: IOException) {
+            recordingFailed(error.toString())
+            return
         }
         game.start(SystemClock.elapsedRealtime(), laneIntroMs = LANE_INTRO_MS)
     }
@@ -169,7 +171,7 @@ class MainActivity : ComponentActivity() {
         releaseRecording()
         availableSongs = availableSongs - failedSong
         if (game.screen == "play") returnToLobby()
-        game.song = availableSongs.first()
+        availableSongs.firstOrNull()?.let { game.song = it }
         showLobbyPage(showSongs = true)
         notice = UiNotice("${failedSong.title} 음원을 열 수 없어요.")
     }
@@ -187,7 +189,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun stopGameAudio() {
-        tone?.stopTone()
+        stopStickSound()
         if (recordingPlaying) {
             recording?.pause()
             recordingPlaying = false
@@ -203,18 +205,24 @@ class MainActivity : ComponentActivity() {
         pauseGame()
         releaseRecording()
         game.resetReadiness()
-        showLobbyPage(showSongs = false)
+        showLobbyPage(showSongs = availableSongs.isEmpty())
         game.screen = "home"
     }
 
-    private fun playSongBeat() {
-        if (!audioFocused) return
-        val song = game.song
-        if (song.recordingAsset != null && game.elapsed >= song.countInMs) return
-        val effectiveElapsed = (game.elapsed + game.timingOffsetMs).coerceAtLeast(0L)
-        val beat = effectiveElapsed / song.beatMs
-        val sound = if (beat % 4 == 0L) ToneGenerator.TONE_PROP_ACK else ToneGenerator.TONE_PROP_BEEP
-        tone?.startTone(sound, 65)
+    private fun playSongBeat(beat: Int) {
+        if (audioFocused) playStickSound(accented = beat == 0)
+    }
+
+    private fun playStickSound(accented: Boolean = false) {
+        if (!stickSoundReady) return
+        val volume = if (accented) 1f else .9f
+        stickStreamId = stickPool.play(stickSoundId, volume, volume, 1, 0, if (accented) .92f else 1f)
+    }
+
+    private fun stopStickSound() {
+        if (stickStreamId == 0) return
+        stickPool.stop(stickStreamId)
+        stickStreamId = 0
     }
 
     private var audioFocused = false
@@ -233,11 +241,15 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalSharedTransitionApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        tone = runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, 45) }.getOrNull()
-        availableSongs = RhythmSong.entries.filter { song ->
-            val asset = song.recordingAsset
-            asset == null || runCatching { assets.openFd(asset).close() }.isSuccess
+        stickPool = SoundPool.Builder().setMaxStreams(1).setAudioAttributes(gameAudioAttributes).build()
+        stickPool.setOnLoadCompleteListener { _, sampleId, status ->
+            if (sampleId == stickSoundId && status == 0) stickSoundReady = true
         }
+        stickSoundId = stickPool.load(this, R.raw.stick_count, 1)
+        availableSongs = RhythmSong.entries.filter { song ->
+            runCatching { assets.openFd(song.recordingAsset).close() }.isSuccess
+        }
+        availableSongs.firstOrNull()?.let { game.song = it }
         game.timingOffsetMs = timingPreferences.getLong("offset_ms", 0L)
             .coerceIn(-MAX_TIMING_OFFSET_MS, MAX_TIMING_OFFSET_MS)
         inputs = VehicleInputs(this, ::onReadingLightChanged, {
@@ -332,7 +344,7 @@ class MainActivity : ComponentActivity() {
                                                     startAudio = ::startCalibrationAudio,
                                                     stopAudio = ::stopCalibrationAudio,
                                                     playCue = {
-                                                        if (calibrationAudioReady) tone?.startTone(ToneGenerator.TONE_PROP_BEEP, 65)
+                                                        if (calibrationAudioReady) playStickSound()
                                                     },
                                                     onBack = ::closeTiming
                                                 )
@@ -376,7 +388,7 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         inputs.close()
         audioManager.abandonAudioFocusRequest(focusRequest)
-        tone?.release()
+        stickPool.release()
         releaseRecording()
         super.onDestroy()
     }
@@ -400,7 +412,8 @@ class MainActivity : ComponentActivity() {
                     ) { Text("홈으로", fontSize = 17.sp) }
                     RhythmSegmented(
                         listOf("1. 곡 선택", "2. 자리·게임 설정"), if (pickingSong) 0 else 1,
-                        { showLobbyPage(showSongs = it == 0) }, Modifier.widthIn(max = 460.dp).fillMaxWidth()
+                        { showLobbyPage(showSongs = it == 0 || availableSongs.isEmpty()) },
+                        Modifier.widthIn(max = 460.dp).fillMaxWidth()
                     )
                 }
                 AnimatedContent(
@@ -503,7 +516,7 @@ class MainActivity : ComponentActivity() {
                 }
                 RhythmButton(
                     onClick = ::startGame,
-                    enabled = inputs.parked && game.hasReadySeats,
+                    enabled = inputs.parked && game.hasReadySeats && game.song in availableSongs,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp)
                 ) {
                     Text(if (game.soloReady) "솔로 시작" else "함께 시작", fontSize = 24.sp)

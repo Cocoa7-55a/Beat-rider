@@ -72,7 +72,7 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
     private var segmentStart = 0L
     private var lastBeat = -1L
     val window get() = if (practice) 350L else 220L
-    var song by mutableStateOf(RhythmSong.FAMILY_BEAT)
+    var song by mutableStateOf(RhythmSong.TWINKLE)
     var difficulty by mutableStateOf(ChartDifficulty.NORMAL)
     val duration get() = song.durationMs
     fun start(now: Long, laneIntroMs: Long = 0L) {
@@ -83,7 +83,9 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
         notes = song.playNotes(difficulty, playingLanes)
         pause()
         // Reserve the same lead-in even when a slower note speed exposes the first note before beat one.
-        laneIntroEndsAt = if (laneIntroMs > 0) minOf(0L, notes.first().time - ceil(noteTravelMs).toLong()) else 0L
+        laneIntroEndsAt = if (laneIntroMs > 0) {
+            minOf(-timingOffsetMs.coerceAtLeast(0), notes.first().time - ceil(noteTravelMs).toLong())
+        } else 0L
         elapsed = laneIntroEndsAt - laneIntroMs
         score = 0; combo = 0; best = 0; hits = 0
         life = MAX_LIFE
@@ -103,7 +105,7 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
         resumeAt = now + resumeRemainingMs
     }
 
-    fun tick(now: Long, recordingPositionMs: Long? = null, beat: () -> Unit) {
+    fun tick(now: Long, recordingPositionMs: Long? = null, beat: (Int) -> Unit) {
         if (resumeRemainingMs > 0) {
             resumeRemainingMs = (resumeAt - now).coerceAtLeast(0)
             if (resumeRemainingMs == 0L) {
@@ -114,10 +116,8 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
             return
         }
         if (!running) return
-        val synth = song.recordingAsset == null
         val frameDelta = (now - lastFrame).coerceAtLeast(0)
         elapsed = when {
-            synth -> elapsed + frameDelta
             recordingPositionMs != null -> {
                 if (recordingPositionMs >= song.musicDurationMs) {
                     duration
@@ -132,10 +132,14 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
             else -> elapsed // wait for recording position
         }
         lastFrame = now
-        // Synth: fire beat cues early so audio reaches ears on time
-        val effectiveElapsed = (elapsed + if (synth) timingOffsetMs else 0L).coerceAtLeast(0L)
-        val current = effectiveElapsed / song.beatMs
-        if (elapsed >= 0 && current != lastBeat) { lastBeat = current; beat() }
+        val countInElapsed = elapsed + timingOffsetMs
+        if (elapsed >= laneIntroEndsAt && countInElapsed in 0 until song.countInMs) {
+            val current = countInElapsed / song.beatMs
+            if (current != lastBeat) {
+                lastBeat = current
+                beat(current.toInt())
+            }
+        }
         val latestInputOffset = if (isSolo) 0L else maxOf(0L, offsetMs)
         for (note in notes) {
             if (note.judged || elapsed <= note.time + window + latestInputOffset) continue
@@ -147,13 +151,13 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
     fun hit(lane: Int, now: Long, vehicle: Boolean = false) {
         if (!running || elapsed < laneIntroEndsAt || lane !in playingLanes || now < segmentStart || (isSolo && vehicle)) return
         val at = elapsed + (now - lastFrame) - if (vehicle) offsetMs else 0L
-        val note = notes.filter { !it.judged && it.lane == lane }.minByOrNull { abs(it.time - at) } ?: return
-        val error = abs(note.time - at)
-        if (error > window) {
+        val note = notes.filter { !it.judged && it.lane == lane }.minByOrNull { abs(it.time - at) }
+        if (note == null || abs(note.time - at) > window) {
             feedback = "박자를 기다려요"
             laneJudge[lane] = LaneJudge(null, elapsed)
             return
         }
+        val error = abs(note.time - at)
         val scaledError = error * 220
         val judgment = when {
             scaledError <= 100 * window -> Judgment.PERFECT

@@ -1,11 +1,32 @@
 package com.example.hyundaiapp
 
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import org.junit.Assert.*
 import org.junit.Test
 
 class RhythmGameTest {
     private fun readyGame(seats: List<Int> = (0..3).toList()) = RhythmGame().apply {
         seats.forEach { setSeatReady(it, true) }
+    }
+
+    private fun RhythmGame.tickAtSongTime(time: Long, now: Long = time) {
+        tick(now, recordingPositionMs = time - song.countInMs) {}
+    }
+
+    @Test fun touchUsesTheVisiblePerspectiveLaneBoundaries() {
+        for (count in 1..4) {
+            val track = PerspectiveTrack(Size(1000f, 600f), count, 108f, if (count == 1) .66f else 1f)
+            for (y in listOf(track.judgmentY, 540f, 599f)) {
+                assertNull(track.inputColumnAt(track.point(0f, y) - Offset(1f, 0f)))
+                assertNull(track.inputColumnAt(track.point(count.toFloat(), y) + Offset(1f, 0f)))
+                for (lane in 0 until count) {
+                    assertEquals(lane, track.inputColumnAt(track.point(lane.toFloat(), y) + Offset(1f, 0f)))
+                    assertEquals(lane, track.inputColumnAt(track.point(lane + 1f, y) - Offset(1f, 0f)))
+                }
+            }
+            assertNull(track.inputColumnAt(track.point(.5f, track.judgmentY - 1f)))
+        }
     }
 
     @Test fun laneIntroEndsBeforeNotesEnterAtEverySupportedSpeed() {
@@ -53,7 +74,7 @@ class RhythmGameTest {
         assertEquals(listOf(1, 3), game.playingLanes)
         assertEquals(setOf(1, 3), game.notes.map { it.lane }.toSet())
         val firstNote = game.notes.first()
-        game.tick(firstNote.time) {}
+        game.tickAtSongTime(firstNote.time)
         game.hit(firstNote.lane, firstNote.time)
         assertEquals(100, game.score)
     }
@@ -62,19 +83,21 @@ class RhythmGameTest {
         val game = readyGame(); game.start(1000)
         game.notes.forEachIndexed { index, note ->
             val time = 1000L + note.time
-            game.tick(time) {}
+            game.tickAtSongTime(note.time, now = time)
             game.hit(note.lane, time, vehicle = index % 2 == 0)
             game.hit(note.lane, time)
         }
-        game.tick(20000) {}
-        assertEquals(3200, game.maxScore); assertEquals(game.maxScore, game.score); assertEquals(32, game.best)
+        game.tickAtSongTime(game.duration, now = 1000L + game.duration)
+        assertEquals(14000, game.maxScore)
+        assertEquals(game.maxScore, game.score)
+        assertEquals(140, game.best)
         assertEquals("result", game.screen)
-        assertEquals(listOf(32, 0, 0, 0, 0), game.judgments.toList())
+        assertEquals(listOf(140, 0, 0, 0, 0), game.judgments.toList())
     }
     @Test fun countdownFreezesSongAndRejectsInputsUntilResumed() {
         val game = readyGame()
         game.start(0)
-        game.tick(1900) {}
+        game.tickAtSongTime(4100)
         game.pause()
         game.resume(10000)
 
@@ -83,14 +106,14 @@ class RhythmGameTest {
         game.tick(13249) { fail("Countdown must not play a beat") }
         game.hit(0, 13249, vehicle = true)
         assertEquals(0, game.hits)
-        assertEquals(1900L, game.elapsed)
+        assertEquals(4100L, game.elapsed)
         assertFalse(game.running)
         assertEquals(1L, game.resumeRemainingMs)
 
         game.tick(13250) {}
         assertTrue(game.running)
         assertEquals(0L, game.resumeRemainingMs)
-        assertEquals(1900L, game.elapsed)
+        assertEquals(4100L, game.elapsed)
         game.hit(0, 13249, vehicle = true)
         assertEquals(0, game.hits)
         game.hit(0, 13350)
@@ -110,21 +133,21 @@ class RhythmGameTest {
         assertFalse(game.running)
     }
     @Test fun callbackReceiptTimeIsUsedEvenAfterNextFrame() {
-        val game = readyGame(); game.start(0); game.tick(2100) {}
-        game.hit(0, 2000, true)
+        val game = readyGame(); game.start(0); game.tickAtSongTime(4300)
+        game.hit(0, 4200, true)
         assertEquals(100, game.score)
     }
     @Test fun positiveLightOffsetDoesNotExpireNoteBeforeDelayedInput() {
         val game = readyGame(); game.offsetMs = 300; game.start(0)
-        game.tick(2300) {}; game.hit(0, 2300, true)
+        game.tickAtSongTime(4500); game.hit(0, 4500, true)
         assertEquals(100, game.score)
     }
     @Test fun practiceHasWiderWindowAndMissResetsSharedCombo() {
-        val normal = readyGame(); normal.start(0); normal.hit(0, 1700)
+        val normal = readyGame(); normal.start(0); normal.hit(0, 3900)
         assertEquals(0, normal.hits)
         val practice = readyGame(); practice.practice = true; practice.start(0)
-        practice.hit(0, 1700); assertEquals(1, practice.hits)
-        practice.tick(3000) {}; assertEquals(0, practice.combo)
+        practice.hit(0, 3900); assertEquals(1, practice.hits)
+        practice.tickAtSongTime(5600); assertEquals(0, practice.combo)
     }
     @Test fun oneNonDriverPlayerGetsAllNotesInTheirOwnLane() {
         val game = readyGame(listOf(3)); game.start(0)
@@ -148,8 +171,7 @@ class RhythmGameTest {
                 assertEquals(song.chart(difficulty), game.notes.map { it.time })
 
                 for (note in game.notes) {
-                    val position = if (song.recordingAsset != null) note.time - song.countInMs else null
-                    game.tick(note.time, recordingPositionMs = position) {}
+                    game.tickAtSongTime(note.time)
                     game.hit(note.lane, note.time, vehicle = true)
                     assertFalse(note.judged)
                     game.hit(note.lane, note.time)
@@ -230,7 +252,6 @@ class RhythmGameTest {
     @Test fun difficultyAddsNotesOnMeasuredPercussionInTheRecordedTrack() {
         val song = RhythmSong.TWINKLE
         assertEquals(listOf(80, 140, 176), ChartDifficulty.entries.map { song.chart(it).size })
-        assertEquals(listOf(16, 32, 48), ChartDifficulty.entries.map { RhythmSong.FAMILY_BEAT.chart(it).size })
 
         val easy = song.chart(ChartDifficulty.EASY)
         val normal = song.chart(ChartDifficulty.NORMAL)
@@ -251,14 +272,14 @@ class RhythmGameTest {
         val expected = listOf(Judgment.PERFECT, Judgment.GREAT, Judgment.GOOD, Judgment.BAD)
         game.notes.take(errors.size).forEachIndexed { index, note ->
             val time = note.time + errors[index]
-            game.tick(time) {}
+            game.tickAtSongTime(time)
             game.hit(note.lane, time, vehicle = index % 2 == 0)
             assertEquals(expected[index].name, game.feedback)
             assertEquals(listOf(1, 2, 0, 0)[index], game.combo)
             assertEquals(listOf(1000, 1000, 1000, 950)[index], game.life)
             assertEquals(listOf(100, 180, 230, 250)[index], game.score)
         }
-        game.tick(game.notes[4].time + 221L) {}
+        game.tickAtSongTime(game.notes[4].time + 221L)
         assertEquals("MISS", game.feedback)
         assertEquals(850, game.life)
         assertEquals(2, game.best)
@@ -267,7 +288,7 @@ class RhythmGameTest {
     @Test fun emptyLifeEndsStandardPlayAndResetsOnNewGame() {
         val game = readyGame()
         game.start(0)
-        game.tick(game.notes[9].time + 221L) {}
+        game.tickAtSongTime(game.notes[9].time + 221L)
         assertEquals(0, game.life)
         assertTrue(game.failed)
         assertFalse(game.running)
@@ -276,7 +297,7 @@ class RhythmGameTest {
         game.practice = true
         game.start(0)
         assertEquals(MAX_LIFE, game.life)
-        game.tick(game.notes[9].time + 351L) {}
+        game.tickAtSongTime(game.notes[9].time + 351L)
         assertEquals(0, game.life)
         assertTrue(game.running)
         assertEquals("play", game.screen)
@@ -293,8 +314,6 @@ class RhythmGameTest {
                 }
             }
         }
-        val beat = RhythmSong.FAMILY_BEAT.playNotes(ChartDifficulty.NORMAL, seatSets.last())
-        assertEquals(listOf(0, 2, 1, 0, 3, 1, 2, 3), beat.take(8).map { it.lane })
         val twinkle = RhythmSong.TWINKLE.playNotes(ChartDifficulty.HARD, seatSets.last())
         assertEquals(3, twinkle.single { it.time == 24900L }.lane)
     }
@@ -359,36 +378,23 @@ class RhythmGameTest {
         assertEquals(2, game.hits)
     }
 
-    @Test fun timingOffsetShiftsSynthesizedBeatCuesEarly() {
-        val game = readyGame()
-        game.song = RhythmSong.FAMILY_BEAT // beatMs = 500
-        game.timingOffsetMs = 100
-        game.start(0)
-        var beats = 0
-        // At elapsed = 400ms, (400 + 100) / 500 = 1, so the beat fires 100ms early to reach the ear on beat
-        game.tick(400) { beats++ }
-        assertEquals(1, beats)
-    }
-
-    @Test fun familyBeatHitsOnLineRegardlessOfTimingOffset() {
-        val game = readyGame()
-        game.song = RhythmSong.FAMILY_BEAT
-        game.timingOffsetMs = 120
-        game.start(0)
-
-        // First playable note is at 2000ms
-        val note = game.notes.first()
-        assertEquals(2000L, note.time)
-
-        // Player sees the note on the line at elapsed = 2000ms and hits:
-        game.tick(2000) {}
-        assertEquals(2000L, game.elapsed)
-        game.hit(note.lane, 2000)
-
-        // Must be PERFECT without artificial judgment delay:
-        assertEquals(100, game.score)
-        assertEquals(1, game.hits)
-        assertEquals(Judgment.PERFECT, game.laneJudge[note.lane]?.judgment)
+    @Test fun recordedSongsPlayFourCountInBeatsAtBothOffsetLimits() {
+        for (song in RhythmSong.entries) {
+            for (offset in listOf(-500L, 0L, 500L)) {
+                val game = readyGame()
+                game.song = song
+                game.timingOffsetMs = offset
+                game.start(0, laneIntroMs = LANE_INTRO_MS)
+                val beats = mutableListOf<Int>()
+                val start = game.elapsed
+                val recordAt = song.countInMs - offset
+                for (time in start..recordAt + 100 step 10) {
+                    val position = (time - recordAt).takeIf { it >= 0 }
+                    game.tick(time - start, position) { beats.add(it) }
+                }
+                assertEquals(listOf(0, 1, 2, 3), beats)
+            }
+        }
     }
 
     @Test fun baselineDuplicatesAndReconnectAreExcluded() {
@@ -404,12 +410,12 @@ class RhythmGameTest {
         val game = readyGame(); game.start(0)
         val note = game.notes.first()
         val other = (0..3).first { it != note.lane }
-        game.tick(note.time) {}
+        game.tickAtSongTime(note.time)
         game.hit(note.lane, note.time)
         assertEquals(Judgment.PERFECT, game.laneJudge[note.lane]?.judgment)
         game.hit(other, note.time)
         assertNull(game.laneJudge[other]!!.judgment)
-        game.tick(game.notes[1].time + 221L) {}
+        game.tickAtSongTime(game.notes[1].time + 221L)
         assertEquals(Judgment.MISS, game.laneJudge[game.notes[1].lane]?.judgment)
         game.start(0)
         assertTrue(game.laneJudge.all { it == null })

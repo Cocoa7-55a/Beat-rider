@@ -155,7 +155,6 @@ internal fun RhythmButton(
     // Black buttons flood blue while held; white and tinted ones just darken.
     val fill by animateColorAsState(
         when {
-            color == Color.Transparent -> color
             !enabled -> RhythmColors.Line
             !pressed -> color
             color == RhythmColors.Ink -> RhythmColors.Blue

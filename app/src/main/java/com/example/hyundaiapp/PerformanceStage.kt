@@ -1,11 +1,12 @@
 package com.example.hyundaiapp
 
+import android.os.SystemClock
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -32,12 +34,25 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.changedToDown
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.unit.sp
 
 private const val HorizonFadeFraction = .22f
@@ -45,6 +60,7 @@ internal const val LANE_INTRO_MS = 1300L
 private const val LaneLabelFadeMs = 240f
 private const val SingleLaneWidth = .66f
 private const val TrackHorizon = .085f
+private val LaneActivationKeys = setOf(Key.DirectionCenter, Key.Enter, Key.Spacebar, Key.NumPadEnter)
 
 // Both renderers reach depth 1 at the note's scheduled hit time.
 internal fun projectNoteDepth(progress: Float): Float =
@@ -85,6 +101,7 @@ internal fun PerformanceStage(
     modifier: Modifier = Modifier
 ) {
     val lanes = game.playingLanes
+    val pressLane by rememberUpdatedState(onLanePress)
     val columnForLane = remember(lanes) { IntArray(seatColors.size) { lanes.indexOf(it) } }
     val widthFraction = if (lanes.size == 1) SingleLaneWidth else 1f
     BoxWithConstraints(modifier.clipToBounds()) {
@@ -94,8 +111,27 @@ internal fun PerformanceStage(
         )
         val judgmentDepth = (1f - inputHeight / maxHeight.coerceAtLeast(1.dp) - TrackHorizon).coerceAtLeast(.01f)
         val judgmentWidth = widthFraction / noteScaleAtDepth((1f - TrackHorizon) / judgmentDepth)
+        val inputWidth = (judgmentWidth + widthFraction) / 2
         Spacer(
-            Modifier.matchParentSize().drawWithCache {
+            Modifier.matchParentSize()
+                .pointerInput(canTap, lanes, inputHeight, widthFraction) {
+                    if (!canTap || lanes.isEmpty()) return@pointerInput
+                    val inputHeightPx = inputHeight.toPx()
+                    awaitPointerEventScope {
+                        while (true) {
+                            val downs = awaitPointerEvent().changes.filter { it.changedToDown() }
+                            if (downs.isEmpty()) continue
+                            val track = PerspectiveTrack(size.toSize(), lanes.size, inputHeightPx, widthFraction)
+                            for (change in downs) {
+                                val column = track.inputColumnAt(change.position) ?: continue
+                                change.consume()
+                                val at = SystemClock.elapsedRealtime() - (SystemClock.uptimeMillis() - change.uptimeMillis)
+                                pressLane(lanes[column], at)
+                            }
+                        }
+                    }
+                }
+                .drawWithCache {
                 val track = PerspectiveTrack(size, lanes.size, inputHeight.toPx(), widthFraction)
                 val floor = track.surface(0f, lanes.size.toFloat())
                 val floorShade = Brush.verticalGradient(
@@ -113,6 +149,11 @@ internal fun PerformanceStage(
                         endY = track.fadeEndY
                     )
                     track.surface(column.toFloat(), column + 1f) to brush
+                }
+                val flashPaths = lanes.indices.map { column ->
+                    val left = column.toFloat()
+                    track.surface(left, left + 1f, track.flashStartY) to
+                        track.surface(left, left + 1f, track.judgmentY)
                 }
                 val railInk = Brush.verticalGradient(
                     0f to Color(0x007D94B8),
@@ -139,7 +180,12 @@ internal fun PerformanceStage(
                     lanes.forEachIndexed { column, lane ->
                         drawTarget(track, column, seatColors[lane])
                         val judge = game.laneJudge[lane]
-                        flashProgress(game, judge)?.let { drawLaneFlash(track, column, judgmentColor(judge?.judgment), 1f - it, judge?.judgment == null) }
+                        flashProgress(game, judge)?.let { progress ->
+                            val (clip, input) = flashPaths[column]
+                            clipPath(clip) {
+                                drawLaneFlash(track, column, input, judgmentColor(judge?.judgment), 1f - progress, judge?.judgment == null)
+                            }
+                        }
                     }
                     for (note in game.notes) {
                         if (note.judged) continue
@@ -162,17 +208,23 @@ internal fun PerformanceStage(
                 }
             }
         }
-        Row(Modifier.fillMaxWidth(widthFraction).height(inputHeight).align(Alignment.BottomCenter)) {
+        Row(Modifier.fillMaxWidth(inputWidth).height(inputHeight).align(Alignment.BottomCenter)) {
             lanes.forEach { lane ->
                 val label = if (game.isSolo) "${lane + 1} 레인" else seatNames[lane]
-                RhythmButton(
-                    onClick = {},
-                    onPress = { at -> onLanePress(lane, at) },
-                    enabled = canTap,
-                    color = Color.Transparent,
-                    textColor = RhythmColors.StageInk,
-                    contentPadding = PaddingValues(horizontal = 4.dp),
-                    modifier = Modifier.weight(1f).fillMaxHeight().semantics { contentDescription = label }
+                Box(
+                    Modifier.weight(1f).fillMaxHeight().semantics {
+                        contentDescription = label
+                        role = Role.Button
+                        if (canTap) onClick {
+                            pressLane(lane, SystemClock.elapsedRealtime())
+                            true
+                        } else disabled()
+                    }.onKeyEvent { event ->
+                        if (event.key !in LaneActivationKeys) return@onKeyEvent false
+                        if (event.type == KeyEventType.KeyUp) pressLane(lane, SystemClock.elapsedRealtime())
+                        true
+                    }.focusable(canTap),
+                    contentAlignment = Alignment.Center
                 ) {
                     LaneIntroLabel(game, lane, label, compact)
                 }
@@ -247,10 +299,11 @@ private fun visibleSongTime(game: RhythmGame): Float {
     return game.elapsed - rewindMs
 }
 
-private class PerspectiveTrack(size: Size, val laneCount: Int, inputHeight: Float, widthFraction: Float) {
+internal class PerspectiveTrack(size: Size, val laneCount: Int, inputHeight: Float, widthFraction: Float) {
     val horizonY = size.height * TrackHorizon
     val endY = size.height
     val judgmentY = endY - inputHeight
+    val flashStartY = judgmentY - (judgmentY - horizonY) * .45f
     val fadeEndY = horizonY + (endY - horizonY) * HorizonFadeFraction
     private val centerX = size.width / 2
     private val approachHeight = (judgmentY - horizonY).coerceAtLeast(1f)
@@ -267,9 +320,17 @@ private class PerspectiveTrack(size: Size, val laneCount: Int, inputHeight: Floa
         return Offset(centerX + across * nearWidth * scaleAt(y), y)
     }
 
-    fun surface(left: Float, right: Float): Path {
-        val topLeft = point(left, horizonY)
-        val topRight = point(right, horizonY)
+    fun inputColumnAt(position: Offset): Int? {
+        if (laneCount == 0 || position.y < judgmentY || position.y >= endY) return null
+        val left = point(0f, position.y).x
+        val right = point(laneCount.toFloat(), position.y).x
+        if (right <= left || position.x < left || position.x >= right) return null
+        return (((position.x - left) / (right - left)) * laneCount).toInt().coerceAtMost(laneCount - 1)
+    }
+
+    fun surface(left: Float, right: Float, top: Float = horizonY): Path {
+        val topLeft = point(left, top)
+        val topRight = point(right, top)
         val bottomRight = point(right, endY)
         val bottomLeft = point(left, endY)
         return Path().apply {
@@ -311,15 +372,24 @@ private fun DrawScope.drawTarget(track: PerspectiveTrack, lane: Int, color: Colo
     drawCircle(color, 8.dp.toPx(), center, style = Stroke(2.dp.toPx()))
 }
 
-private fun DrawScope.drawLaneFlash(track: PerspectiveTrack, lane: Int, color: Color, strength: Float, stray: Boolean) {
+private fun DrawScope.drawLaneFlash(
+    track: PerspectiveTrack, lane: Int, input: Path, color: Color, strength: Float, stray: Boolean
+) {
     val s = if (stray) strength * .5f else strength
-    val top = track.judgmentY - (track.judgmentY - track.horizonY) * .45f
-    val path = Path().apply {
-        val tl = track.point(lane.toFloat(), top); val tr = track.point(lane + 1f, top)
-        val br = track.point(lane + 1f, track.judgmentY); val bl = track.point(lane.toFloat(), track.judgmentY)
-        moveTo(tl.x, tl.y); lineTo(tr.x, tr.y); lineTo(br.x, br.y); lineTo(bl.x, bl.y); close()
-    }
-    drawPath(path, Brush.verticalGradient(listOf(Color.Transparent, color.copy(alpha = .45f * s)), startY = top, endY = track.judgmentY))
+    drawRect(
+        Brush.verticalGradient(
+            0f to Color.Transparent,
+            1f to color.copy(alpha = .45f * s),
+            startY = track.flashStartY,
+            endY = track.judgmentY
+        ),
+        topLeft = Offset(0f, track.flashStartY),
+        size = Size(size.width, track.judgmentY - track.flashStartY)
+    )
+    drawPath(input, Brush.verticalGradient(
+        listOf(color.copy(alpha = .32f * s), color.copy(alpha = .10f * s)),
+        startY = track.judgmentY, endY = track.endY
+    ))
     drawLine(
         color.copy(alpha = .95f * s),
         track.point(lane + .045f, track.judgmentY), track.point(lane + .955f, track.judgmentY),

@@ -56,6 +56,16 @@ internal fun SongPicker(
     onContinue: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    if (songs.isEmpty()) {
+        Box(modifier, contentAlignment = Alignment.Center) {
+            Text(
+                "연주할 곡이 없어요. 작은 별 또는 징글벨 음원을 추가해 주세요.",
+                color = RhythmColors.Muted,
+                style = MaterialTheme.typography.titleLarge
+            )
+        }
+        return
+    }
     BoxWithConstraints(modifier) {
         if (maxWidth >= 620.dp) {
             Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(32.dp)) {

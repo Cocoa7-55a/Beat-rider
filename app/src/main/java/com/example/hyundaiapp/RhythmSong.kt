@@ -8,7 +8,7 @@ internal const val COUNT_IN_BEATS = 4
 private const val TWINKLE_FIRST_BEAT = 3
 private const val PHRASE_BEATS = 8
 
-data class SongCue(val beat: Int, val semitones: Int? = null)
+data class SongCue(val beat: Int, val semitones: Int)
 
 enum class ChartDifficulty(val label: String, val description: String) {
     EASY("쉬움", "주요 박자에 맞춰 여유 있게 연주해요."),
@@ -21,10 +21,9 @@ enum class RhythmSong(
     val bpm: Int,
     val cues: List<SongCue>,
     internal val musicDurationMs: Long,
-    internal val recordingAsset: String? = null,
+    internal val recordingAsset: String,
     private val beatOffsetMs: Long = 0
 ) {
-    FAMILY_BEAT("가족 비트", 120, List(32) { SongCue(it) }, 17_000),
     TWINKLE("반짝반짝 작은 별", 100, twinkleCues(), 108_931, "twinkle_twinkle.mp3"),
     JINGLE_BELLS("징글벨", 118, jingleBellsCues(), 71_236, "jingle_bells.mp3", beatOffsetMs = 75);
 
@@ -47,7 +46,7 @@ enum class RhythmSong(
             val phrase = melodyBeat / PHRASE_BEATS
             val direction = if (phrase % 2 == 0) 1 else -1
             val pitch = step.cue.semitones
-            val repeatedPitch = pitch != null && melodyBeat % PHRASE_BEATS != 0 && cueAt(beat - 1)?.semitones == pitch
+            val repeatedPitch = melodyBeat % PHRASE_BEATS != 0 && cueAt(beat - 1)?.semitones == pitch
             val onsetLane = if (laneCount > 1 && repeatedPitch) neighboringLane(base, direction, laneCount) else base
             val lane = if (step.offbeat && laneCount > 1) {
                 val next = cueAt(beat + 1)?.let { baseLane(it, laneCount) } ?: onsetLane
@@ -72,7 +71,6 @@ enum class RhythmSong(
         ChartDifficulty.NORMAL -> cues.map { Step(it) }
         ChartDifficulty.HARD -> cues.flatMap { cue ->
             val addOffbeat = when (this) {
-                FAMILY_BEAT -> cue.beat % 2 == 0
                 JINGLE_BELLS -> cue.beat in jingleBellsOffbeats
                 TWINKLE -> {
                     val beat = cue.beat - firstBeat
@@ -88,16 +86,8 @@ enum class RhythmSong(
     }
 
     private fun baseLane(cue: SongCue, laneCount: Int): Int {
-        val pitch = cue.semitones
-        val position = if (pitch != null) {
-            // Spread the recording's pitch range across the lanes.
-            pitch / if (this == JINGLE_BELLS) 12f else 9f
-        } else {
-            // Alternate mirrored phrases while keeping the strong beats distinct.
-            val beatLane = familyBeatLanes[cue.beat % familyBeatLanes.size]
-            val lane = if ((cue.beat / familyBeatLanes.size) % 2 == 0) beatLane else 3 - beatLane
-            lane / 3f
-        }
+        val pitchRange = if (this == JINGLE_BELLS) 12f else 9f
+        val position = cue.semitones / pitchRange
         return (position * (laneCount - 1)).roundToInt()
     }
 
@@ -106,8 +96,6 @@ enum class RhythmSong(
         return if (next in 0 until laneCount) next else lane - direction
     }
 }
-
-private val familyBeatLanes = listOf(0, 2, 1, 0, 3, 1, 2, 3)
 
 // NastelBom recording: the beat grid starts at 75 ms. Skip the short pickup and ending decay.
 private fun jingleBellsCues(): List<SongCue> {

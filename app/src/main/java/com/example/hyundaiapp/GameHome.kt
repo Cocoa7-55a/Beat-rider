@@ -141,7 +141,7 @@ internal fun SharedTransitionScope.BrandHeading(
 
 @Composable
 private fun LanePreview(noteSpeed: Float, modifier: Modifier) {
-    val song = RhythmSong.FAMILY_BEAT
+    val song = RhythmSong.TWINKLE
     val lanes = seatColors.indices
     val chart = remember { song.playNotes(ChartDifficulty.NORMAL, lanes.toList()) }
     val startMs = chart.first().time
