@@ -2,12 +2,14 @@ package com.example.hyundaiapp
 
 import androidx.compose.runtime.*
 import kotlin.math.abs
+import kotlin.math.ceil
 
 internal const val RESUME_COUNTDOWN_MS = 3000L
 internal const val RESUME_LIFT_MS = 250L
 private const val DRIVER_SEAT = 0
 internal const val MAX_LIFE = 1000
 internal const val JUDGE_FLASH_MS = 450L
+internal const val BASE_NOTE_TRAVEL_MS = 2000f
 
 internal enum class Judgment(val points: Int, val lifeCost: Int, val keepsCombo: Boolean) {
     PERFECT(100, 0, true),
@@ -38,6 +40,9 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
         private set
     var practice by mutableStateOf(false)
     var noteSpeed by mutableFloatStateOf(1f)
+    internal val noteTravelMs get() = BASE_NOTE_TRAVEL_MS / noteSpeed
+    internal var laneIntroEndsAt by mutableLongStateOf(0L)
+        private set
     var resumeRemainingMs by mutableLongStateOf(0L)
         private set
     private var resumeAt = 0L
@@ -70,14 +75,17 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
     var song by mutableStateOf(RhythmSong.FAMILY_BEAT)
     var difficulty by mutableStateOf(ChartDifficulty.NORMAL)
     val duration get() = song.durationMs
-    fun start(now: Long) {
+    fun start(now: Long, laneIntroMs: Long = 0L) {
         val seats = readiness.indices.filter { readiness[it] }
         if (seats.isEmpty()) return
         isSolo = soloReady
         playingLanes = if (isSolo) readiness.indices.toList() else seats
         notes = song.playNotes(difficulty, playingLanes)
         pause()
-        elapsed = 0; score = 0; combo = 0; best = 0; hits = 0
+        // Reserve the same lead-in even when a slower note speed exposes the first note before beat one.
+        laneIntroEndsAt = if (laneIntroMs > 0) minOf(0L, notes.first().time - ceil(noteTravelMs).toLong()) else 0L
+        elapsed = laneIntroEndsAt - laneIntroMs
+        score = 0; combo = 0; best = 0; hits = 0
         life = MAX_LIFE
         laneJudge.indices.forEach { laneJudge[it] = null }
         judgments.indices.forEach { judgments[it] = 0 }
@@ -127,7 +135,7 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
         // Synth: fire beat cues early so audio reaches ears on time
         val effectiveElapsed = (elapsed + if (synth) timingOffsetMs else 0L).coerceAtLeast(0L)
         val current = effectiveElapsed / song.beatMs
-        if (current != lastBeat) { lastBeat = current; beat() }
+        if (elapsed >= 0 && current != lastBeat) { lastBeat = current; beat() }
         val latestInputOffset = if (isSolo) 0L else maxOf(0L, offsetMs)
         for (note in notes) {
             if (note.judged || elapsed <= note.time + window + latestInputOffset) continue
@@ -137,7 +145,7 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
         if (elapsed >= duration) finish()
     }
     fun hit(lane: Int, now: Long, vehicle: Boolean = false) {
-        if (!running || lane !in playingLanes || now < segmentStart || (isSolo && vehicle)) return
+        if (!running || elapsed < laneIntroEndsAt || lane !in playingLanes || now < segmentStart || (isSolo && vehicle)) return
         val at = elapsed + (now - lastFrame) - if (vehicle) offsetMs else 0L
         val note = notes.filter { !it.judged && it.lane == lane }.minByOrNull { abs(it.time - at) } ?: return
         val error = abs(note.time - at)

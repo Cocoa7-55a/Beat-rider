@@ -26,7 +26,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -153,7 +152,7 @@ class MainActivity : ComponentActivity() {
                 return
             }
         }
-        game.start(SystemClock.elapsedRealtime())
+        game.start(SystemClock.elapsedRealtime(), laneIntroMs = LANE_INTRO_MS)
     }
 
     private fun releaseRecording() {
@@ -289,7 +288,7 @@ class MainActivity : ComponentActivity() {
                                 Box(Modifier.fillMaxSize()) {
                                     if (screen == "play") PerformanceBackdrop(Modifier.matchParentSize())
                                     Column(
-                                        Modifier.fillMaxSize().padding(24.dp),
+                                        Modifier.fillMaxSize().then(if (screen == "play") Modifier else Modifier.padding(24.dp)),
                                         verticalArrangement = Arrangement.spacedBy(12.dp)
                                     ) {
                                         if (screen != "play") {
@@ -337,10 +336,7 @@ class MainActivity : ComponentActivity() {
                                                     },
                                                     onBack = ::closeTiming
                                                 )
-                                                "play" -> Column(
-                                                    Modifier.fillMaxSize(),
-                                                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                                                ) { Play() }
+                                                "play" -> Play()
                                                 "result" -> Result()
                                             }
                                         }
@@ -607,8 +603,25 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    @Composable private fun ColumnScope.Play() {
-        PlayHud(game, onPause = ::pauseGame)
+    @Composable private fun Play() {
+        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                Modifier.fillMaxWidth().padding(start = 24.dp, top = 24.dp, end = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                PlayHud(game, onPause = ::pauseGame)
+                PlayStatus()
+            }
+            PerformanceStage(
+                game = game,
+                canTap = game.running && inputs.parked,
+                onLanePress = { lane, at -> if (inputs.parked) game.hit(lane, at) },
+                modifier = Modifier.weight(1f).fillMaxWidth()
+            )
+        }
+    }
+
+    @Composable private fun PlayStatus() {
         val preparingResume = game.resumeRemainingMs > 0
         val message = when {
             preparingResume -> "곧 연주를 이어갑니다"
@@ -654,44 +667,12 @@ class MainActivity : ComponentActivity() {
                     textAlign = TextAlign.End
                 )
                 Text(
-                    "${(game.duration - game.elapsed).coerceAtLeast(0) / 1000}초",
+                    "${(game.duration - game.elapsed.coerceAtLeast(0)).coerceAtLeast(0) / 1000}초",
                     color = RhythmColors.StageInk,
                     style = MaterialTheme.typography.titleMedium
                 )
             }
         }
-        val lanes = game.playingLanes
-        PerformanceStage(game, lanes, Modifier.weight(1f).fillMaxWidth())
-        BoxWithConstraints(Modifier.fillMaxWidth()) {
-            val compact = maxWidth < 720.dp
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 12.dp)) {
-                lanes.forEach { lane ->
-                    RhythmButton(
-                        onClick = {},
-                        onPress = { at -> if (inputs.parked) game.hit(lane, at) },
-                        enabled = game.running && inputs.parked,
-                        color = lerp(RhythmColors.Panel, seatColors[lane], .68f),
-                        textColor = RhythmColors.Ink,
-                        overStage = true,
-                        modifier = Modifier.weight(1f).heightIn(min = if (compact) 64.dp else 88.dp),
-                        contentPadding = PaddingValues(horizontal = if (compact) 4.dp else 12.dp, vertical = 8.dp)
-                    ) {
-                        Text(
-                            if (game.isSolo) "${lane + 1} 레인" else "${seatIcons[lane]} ${seatNames[lane]}",
-                            fontSize = if (compact) 15.sp else 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-            }
-        }
-        RhythmButton(
-            onClick = ::returnToLobby,
-            primary = false,
-            overStage = true,
-            modifier = Modifier.heightIn(min = 54.dp)
-        ) { Text("로비로", fontSize = 17.sp) }
     }
 
     @Composable private fun PauseDialog() {

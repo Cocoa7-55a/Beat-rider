@@ -8,6 +8,26 @@ class RhythmGameTest {
         seats.forEach { setSeatReady(it, true) }
     }
 
+    @Test fun laneIntroEndsBeforeNotesEnterAtEverySupportedSpeed() {
+        val game = readyGame(listOf(0))
+        for (song in RhythmSong.entries) {
+            for (speed in listOf(.5f, .75f, 1f, 1.25f, 1.5f, 1.75f, 2f)) {
+                game.song = song
+                game.noteSpeed = speed
+                game.start(0, laneIntroMs = LANE_INTRO_MS)
+                assertEquals(LANE_INTRO_MS, game.laneIntroEndsAt - game.elapsed)
+                assertTrue(game.notes.first().time - game.laneIntroEndsAt >= game.noteTravelMs)
+
+                game.tick(LANE_INTRO_MS - 1) { fail("The lead-in must be silent") }
+                game.hit(game.notes.first().lane, LANE_INTRO_MS - 1)
+                assertEquals("", game.feedback)
+                assertEquals(game.laneIntroEndsAt - 1, game.elapsed)
+                game.tick(LANE_INTRO_MS) {}
+                assertEquals(game.laneIntroEndsAt, game.elapsed)
+            }
+        }
+    }
+
     @Test fun emptyReadinessBlocksStartAndTheLastSeatCanCancel() {
         val game = RhythmGame()
         game.screen = "home"

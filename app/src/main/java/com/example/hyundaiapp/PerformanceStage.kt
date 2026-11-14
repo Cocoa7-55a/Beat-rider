@@ -1,11 +1,15 @@
 package com.example.hyundaiapp
 
+import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,12 +32,19 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 private const val HorizonFadeFraction = .22f
-internal const val BASE_NOTE_TRAVEL_MS = 2000f
+internal const val LANE_INTRO_MS = 1300L
+private const val LaneLabelFadeMs = 240f
+private const val SingleLaneWidth = .66f
+private const val TrackHorizon = .085f
 
 // Both renderers reach depth 1 at the note's scheduled hit time.
 internal fun projectNoteDepth(progress: Float): Float =
@@ -67,12 +78,25 @@ internal fun PerformanceBackdrop(modifier: Modifier = Modifier) {
 }
 
 @Composable
-internal fun PerformanceStage(game: RhythmGame, lanes: List<Int>, modifier: Modifier = Modifier) {
+internal fun PerformanceStage(
+    game: RhythmGame,
+    canTap: Boolean,
+    onLanePress: (Int, Long) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val lanes = game.playingLanes
     val columnForLane = remember(lanes) { IntArray(seatColors.size) { lanes.indexOf(it) } }
-    Box(modifier.clipToBounds()) {
+    val widthFraction = if (lanes.size == 1) SingleLaneWidth else 1f
+    BoxWithConstraints(modifier.clipToBounds()) {
+        val compact = maxWidth < 720.dp
+        val inputHeight = (maxHeight * .18f).coerceIn(
+            minOf(64.dp, maxHeight * .35f), maxHeight * .35f
+        )
+        val judgmentDepth = (1f - inputHeight / maxHeight.coerceAtLeast(1.dp) - TrackHorizon).coerceAtLeast(.01f)
+        val judgmentWidth = widthFraction / noteScaleAtDepth((1f - TrackHorizon) / judgmentDepth)
         Spacer(
             Modifier.matchParentSize().drawWithCache {
-                val track = PerspectiveTrack(size, lanes.size)
+                val track = PerspectiveTrack(size, lanes.size, inputHeight.toPx(), widthFraction)
                 val floor = track.surface(0f, lanes.size.toFloat())
                 val floorShade = Brush.verticalGradient(
                     0f to Color(0x00061022),
@@ -101,7 +125,7 @@ internal fun PerformanceStage(game: RhythmGame, lanes: List<Int>, modifier: Modi
                     drawPath(floor, floorShade)
                     laneFills.forEach { (path, brush) -> drawPath(path, brush) }
                     val elapsed = visibleSongTime(game)
-                    val travelMs = BASE_NOTE_TRAVEL_MS / game.noteSpeed
+                    val travelMs = game.noteTravelMs
                     drawBeatLines(track, elapsed, travelMs, game.song.beatMs)
                     for (edge in 0..lanes.size) {
                         val boundary = edge.toFloat()
@@ -129,10 +153,28 @@ internal fun PerformanceStage(game: RhythmGame, lanes: List<Int>, modifier: Modi
                 }
             }
         )
-        Row(Modifier.fillMaxWidth(.925f).fillMaxHeight(.85f).align(Alignment.TopCenter)) {
+        Box(Modifier.matchParentSize().padding(bottom = inputHeight)) {
+            Row(Modifier.fillMaxWidth(judgmentWidth).fillMaxHeight().align(Alignment.TopCenter)) {
+                lanes.forEach { lane ->
+                    Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.BottomCenter) {
+                        FloatingJudgment(game, game.laneJudge[lane])
+                    }
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth(widthFraction).height(inputHeight).align(Alignment.BottomCenter)) {
             lanes.forEach { lane ->
-                Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.BottomCenter) {
-                    FloatingJudgment(game, game.laneJudge[lane])
+                val label = if (game.isSolo) "${lane + 1} 레인" else seatNames[lane]
+                RhythmButton(
+                    onClick = {},
+                    onPress = { at -> onLanePress(lane, at) },
+                    enabled = canTap,
+                    color = Color.Transparent,
+                    textColor = RhythmColors.StageInk,
+                    contentPadding = PaddingValues(horizontal = 4.dp),
+                    modifier = Modifier.weight(1f).fillMaxHeight().semantics { contentDescription = label }
+                ) {
+                    LaneIntroLabel(game, lane, label, compact)
                 }
             }
         }
@@ -150,6 +192,26 @@ internal fun PerformanceStage(game: RhythmGame, lanes: List<Int>, modifier: Modi
             )
         }
     }
+}
+
+@Composable
+private fun LaneIntroLabel(game: RhythmGame, lane: Int, label: String, compact: Boolean) {
+    val visible by remember(game) { derivedStateOf { game.elapsed < game.laneIntroEndsAt } }
+    if (!visible) return
+
+    Text(
+        text = if (game.isSolo) label else "${seatIcons[lane]} $label",
+        color = seatColors[lane],
+        fontSize = if (compact) 15.sp else 22.sp,
+        fontWeight = FontWeight.Bold,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.clearAndSetSemantics {}.graphicsLayer {
+            val remaining = game.laneIntroEndsAt - game.elapsed
+            val entered = ((LANE_INTRO_MS - remaining) / LaneLabelFadeMs).coerceIn(0f, 1f)
+            val exiting = (1f - remaining / LaneLabelFadeMs).coerceIn(0f, 1f)
+            alpha = UiEase.transform(entered) * (1f - FastOutLinearInEasing.transform(exiting))
+        }
+    )
 }
 
 @Composable
@@ -185,14 +247,14 @@ private fun visibleSongTime(game: RhythmGame): Float {
     return game.elapsed - rewindMs
 }
 
-private class PerspectiveTrack(size: Size, val laneCount: Int) {
-    val horizonY = size.height * .085f
-    val judgmentY = size.height * .85f
-    val endY = size.height * .94f
+private class PerspectiveTrack(size: Size, val laneCount: Int, inputHeight: Float, widthFraction: Float) {
+    val horizonY = size.height * TrackHorizon
+    val endY = size.height
+    val judgmentY = endY - inputHeight
     val fadeEndY = horizonY + (endY - horizonY) * HorizonFadeFraction
     private val centerX = size.width / 2
-    private val nearWidth = size.width * if (laneCount == 1) .58f else .925f
-    private val approachHeight = judgmentY - horizonY
+    private val approachHeight = (judgmentY - horizonY).coerceAtLeast(1f)
+    private val nearWidth = size.width * widthFraction / scaleAt(endY)
 
     fun projectY(progress: Float): Float = horizonY + approachHeight * projectNoteDepth(progress)
 
