@@ -18,5 +18,6 @@ local.properties
 .kotlin/
 **/build/
 
-# Local copy of the Pixabay recording
+# Local copies of the Pixabay recordings
 /app/src/main/assets/twinkle_twinkle.mp3
+/app/src/main/assets/jingle_bells.mp3

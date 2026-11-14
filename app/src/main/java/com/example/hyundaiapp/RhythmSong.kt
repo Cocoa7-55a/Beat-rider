@@ -1,6 +1,7 @@
 package com.example.hyundaiapp
 
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 import kotlin.math.sign
 
 internal const val COUNT_IN_BEATS = 4
@@ -20,10 +21,12 @@ enum class RhythmSong(
     val bpm: Int,
     val cues: List<SongCue>,
     internal val musicDurationMs: Long,
-    internal val recordingAsset: String? = null
+    internal val recordingAsset: String? = null,
+    private val beatOffsetMs: Long = 0
 ) {
     FAMILY_BEAT("가족 비트", 120, List(32) { SongCue(it) }, 17_000),
-    TWINKLE("반짝반짝 작은 별", 100, twinkleCues(), 108_931, "twinkle_twinkle.mp3");
+    TWINKLE("반짝반짝 작은 별", 100, twinkleCues(), 108_931, "twinkle_twinkle.mp3"),
+    JINGLE_BELLS("징글벨", 118, jingleBellsCues(), 71_236, "jingle_bells.mp3", beatOffsetMs = 75);
 
     val beatMs = 60_000L / bpm
     val countInMs = COUNT_IN_BEATS * beatMs
@@ -32,7 +35,6 @@ enum class RhythmSong(
     private val firstBeat = cues.first().beat
 
     private fun cueAt(songBeat: Int): SongCue? = cuesByBeat[songBeat]
-    private fun cueTime(cue: SongCue): Long = countInMs + cue.beat * beatMs
 
     fun chart(difficulty: ChartDifficulty): List<Long> = steps(difficulty).map { timeOf(it) }
 
@@ -60,7 +62,10 @@ enum class RhythmSong(
 
     private data class Step(val cue: SongCue, val offbeat: Boolean = false)
 
-    private fun timeOf(step: Step): Long = cueTime(step.cue) + if (step.offbeat) beatMs / 2 else 0L
+    private fun timeOf(step: Step): Long {
+        val beat = step.cue.beat + if (step.offbeat) 0.5 else 0.0
+        return countInMs + beatOffsetMs + (beat * 60_000 / bpm).roundToLong()
+    }
 
     private fun steps(difficulty: ChartDifficulty): List<Step> = when (difficulty) {
         ChartDifficulty.EASY -> cues.filter { (it.beat - firstBeat) % 2 == 0 }.map { Step(it) }
@@ -68,6 +73,7 @@ enum class RhythmSong(
         ChartDifficulty.HARD -> cues.flatMap { cue ->
             val addOffbeat = when (this) {
                 FAMILY_BEAT -> cue.beat % 2 == 0
+                JINGLE_BELLS -> cue.beat in jingleBellsOffbeats
                 TWINKLE -> {
                     val beat = cue.beat - firstBeat
                     val phrase = beat / PHRASE_BEATS
@@ -84,8 +90,8 @@ enum class RhythmSong(
     private fun baseLane(cue: SongCue, laneCount: Int): Int {
         val pitch = cue.semitones
         val position = if (pitch != null) {
-            // Map the C–A melody range from left to right.
-            pitch / 9f
+            // Spread the recording's pitch range across the lanes.
+            pitch / if (this == JINGLE_BELLS) 12f else 9f
         } else {
             // Alternate mirrored phrases while keeping the strong beats distinct.
             val beatLane = familyBeatLanes[cue.beat % familyBeatLanes.size]
@@ -102,6 +108,25 @@ enum class RhythmSong(
 }
 
 private val familyBeatLanes = listOf(0, 2, 1, 0, 3, 1, 2, 3)
+
+// NastelBom recording: the beat grid starts at 75 ms. Skip the short pickup and ending decay.
+private fun jingleBellsCues(): List<SongCue> {
+    val pitches = listOf(
+        "4140", "2130", "5241", "4410", "2104", "4130", "5144", "6344",
+        "0020", "2420", "5532", "2114", "0022", "7414", "5542", "2410",
+        "4140", "0133", "5161", "4327", "2000", "2173", "5122", "5344",
+        "2040", "2410", "3322", "2144", "2000", "0700", "3322", "440"
+    ).joinToString("")
+    val semitones = listOf(0, 2, 4, 5, 7, 9, 11, 12)
+    return pitches.mapIndexed { index, pitch -> SongCue(index + 2, semitones[pitch.digitToInt()]) }
+}
+
+// Strong half-beat attacks measured in the recording, after the numbered beats.
+private val jingleBellsOffbeats = setOf(
+    2, 6, 7, 10, 14, 19, 21, 22, 23, 26, 27, 28, 29, 30, 34, 36, 38, 42,
+    44, 45, 50, 52, 54, 58, 61, 62, 66, 69, 70, 71, 74, 78, 82, 85, 86, 90,
+    92, 93, 94, 98, 99, 100, 102, 106, 108, 111, 114, 116, 118, 122, 124, 126
+)
 
 private fun twinkleCues(): List<SongCue> {
     // White_Records recording: first melody at 1.8 s, then three verses and an opening/answer outro.

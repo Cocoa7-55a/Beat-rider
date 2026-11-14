@@ -118,7 +118,7 @@ class MainActivity : ComponentActivity() {
     private val game = RhythmGame { android.util.Log.i("FamilyBeat", it) }
     private lateinit var inputs: VehicleInputs
     private var tone: ToneGenerator? = null
-    private var twinkleAvailable by mutableStateOf(false)
+    private var availableSongs by mutableStateOf(listOf(RhythmSong.FAMILY_BEAT))
     private var recording: MediaPlayer? = null
     private var recordingReady = false
     private var recordingPlaying = false
@@ -166,12 +166,13 @@ class MainActivity : ComponentActivity() {
 
     private fun recordingFailed(message: String) {
         android.util.Log.w("FamilyBeat", message)
+        val failedSong = game.song
         releaseRecording()
-        twinkleAvailable = false
+        availableSongs = availableSongs - failedSong
         if (game.screen == "play") returnToLobby()
-        game.song = RhythmSong.FAMILY_BEAT
-        pickingSong = true
-        notice = UiNotice("반짝반짝 작은 별 음원을 열 수 없어요.")
+        game.song = availableSongs.first()
+        showLobbyPage(showSongs = true)
+        notice = UiNotice("${failedSong.title} 음원을 열 수 없어요.")
     }
 
     private fun recordingPosition(): Long? {
@@ -234,9 +235,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         tone = runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, 45) }.getOrNull()
-        twinkleAvailable = runCatching {
-            assets.openFd(checkNotNull(RhythmSong.TWINKLE.recordingAsset)).close()
-        }.isSuccess
+        availableSongs = RhythmSong.entries.filter { song ->
+            val asset = song.recordingAsset
+            asset == null || runCatching { assets.openFd(asset).close() }.isSuccess
+        }
         game.timingOffsetMs = timingPreferences.getLong("offset_ms", 0L)
             .coerceIn(-MAX_TIMING_OFFSET_MS, MAX_TIMING_OFFSET_MS)
         inputs = VehicleInputs(this, ::onReadingLightChanged, {
@@ -414,7 +416,7 @@ class MainActivity : ComponentActivity() {
                     if (showSongs) {
                         SongPicker(
                             selectedSong = game.song,
-                            twinkleAvailable = twinkleAvailable,
+                            songs = availableSongs,
                             difficulty = game.difficulty,
                             onSongSelected = { game.song = it },
                             onDifficultySelected = { game.difficulty = it },

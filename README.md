@@ -36,6 +36,7 @@ Pleos Connect 차량 화면에서 1~4명이 자리별 레인을 나눠 연주하
 |:---|---:|---:|---:|:---|
 | **가족 비트** | 16노트 | 32노트 | 48노트 | 120 BPM · 19초 · 내장 비프음 합성 큐 |
 | **반짝반짝 작은 별** (음원 파일이 있을 때만 표시) | 80노트 | 140노트 | 176노트 | 100 BPM · 111초 · MP3 스트리밍 및 멜로디 차트 |
+| **징글벨** (음원 파일이 있을 때만 표시) | 64노트 | 127노트 | 179노트 | 118 BPM · 준비 박자 포함 73초 · 실제 음원 박자 및 반박 채보 |
 
 * **안전 주행 인터럽트**: 기어가 P에서 벗어나거나, 주행 제한이 걸리거나, 차량 상태 조회가 만료되면 게임이 즉시 멈춥니다. 백그라운드 전환 및 오디오 포커스 상실 시에도 일시정지되며, 주차 상태가 복구되어도 사용자가 직접 `이어가기`를 눌러야 재개됩니다. 이어가기 시 0.25초 동안 노트가 위로 올라간 뒤 3초 카운트다운 동안 원래 위치로 강하합니다.
 
@@ -83,7 +84,12 @@ Pleos Connect 차량 화면에서 1~4명이 자리별 레인을 나눠 연주하
 Android Studio에서 프로젝트를 열고 Android SDK 37, JDK 및 Pleos 에뮬레이터를 설정합니다.  
 의존성은 프로젝트에 설정된 Pleos Maven 저장소(`nexus-playground.pleos.ai`)에서 다운로드됩니다.
 
-반짝반짝 작은 별 음원을 포함하려면 [White_Records의 원본 음원](https://pixabay.com/music/happy-childrens-tunes-twinkle-twinkle-little-star-background-childrenx27s-music-for-video-178219/)을 내려받아 `app/src/main/assets/twinkle_twinkle.mp3`로 저장한 뒤 빌드합니다. (원본 MP3는 라이선스 정책에 따라 Git 저장소에서 제외됨)
+녹음 음원은 아래 파일을 `app/src/main/assets/`에 지정된 이름으로 넣은 뒤 빌드하면 곡 목록에 표시됩니다. 원본 MP3는 로컬에 저장합니다.
+
+| 곡 | 프로젝트에 넣을 파일 이름 |
+| --- | --- |
+| [반짝반짝 작은 별 · White_Records](https://pixabay.com/music/happy-childrens-tunes-twinkle-twinkle-little-star-background-childrenx27s-music-for-video-178219/) | `twinkle_twinkle.mp3` |
+| [징글벨 · NastelBom](https://pixabay.com/music/christmas-jingle-bells-454754/) | `jingle_bells.mp3` |
 
 ```powershell
 # 단위 테스트 및 디버그 APK 빌드

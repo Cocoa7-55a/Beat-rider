@@ -179,6 +179,34 @@ class RhythmGameTest {
         assertEquals("result", game.screen)
     }
 
+    @Test fun jingleBellsChartTracksTheRecordingWithoutBeatRoundingDrift() {
+        val song = RhythmSong.JINGLE_BELLS
+        val easy = song.chart(ChartDifficulty.EASY)
+        val normal = song.chart(ChartDifficulty.NORMAL)
+        val hard = song.chart(ChartDifficulty.HARD)
+
+        assertEquals(listOf(64, 127, 179), listOf(easy.size, normal.size, hard.size))
+        assertTrue(normal.containsAll(easy))
+        assertTrue(hard.containsAll(normal))
+        assertEquals(hard.distinct().sorted(), hard)
+        assertEquals(3124L, normal.first())
+        assertEquals(67192L, normal.last())
+        assertEquals(3378L, hard[1])
+        assertEquals(73268L, song.durationMs)
+
+        val game = readyGame(listOf(0))
+        game.song = song
+        game.practice = true
+        game.start(0)
+        game.tick(4000, recordingPositionMs = normal.first() - song.countInMs) {}
+        game.hit(game.notes.first().lane, 4000)
+        assertEquals(100, game.score)
+        game.tick(74999, recordingPositionMs = song.musicDurationMs - 1) {}
+        assertEquals("play", game.screen)
+        game.tick(75000, recordingPositionMs = song.musicDurationMs) {}
+        assertEquals("result", game.screen)
+    }
+
     @Test fun difficultyAddsNotesOnMeasuredPercussionInTheRecordedTrack() {
         val song = RhythmSong.TWINKLE
         assertEquals(listOf(80, 140, 176), ChartDifficulty.entries.map { song.chart(it).size })

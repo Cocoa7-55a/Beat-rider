@@ -24,6 +24,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
@@ -41,12 +42,14 @@ private object SongPalette {
     val sea = Color(0xFFDCE9FF)
     val disc = Color(0xFF2758A8)
     val waveform = Color(0xFFC7DEFF)
+    val evergreen = Color(0xFF12483C)
+    val bell = Color(0xFFFFD685)
 }
 
 @Composable
 internal fun SongPicker(
     selectedSong: RhythmSong,
-    twinkleAvailable: Boolean,
+    songs: List<RhythmSong>,
     difficulty: ChartDifficulty,
     onSongSelected: (RhythmSong) -> Unit,
     onDifficultySelected: (ChartDifficulty) -> Unit,
@@ -56,7 +59,7 @@ internal fun SongPicker(
     BoxWithConstraints(modifier) {
         if (maxWidth >= 620.dp) {
             Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-                SongList(selectedSong, twinkleAvailable, onSongSelected, Modifier.weight(1f).fillMaxHeight())
+                SongList(selectedSong, songs, onSongSelected, Modifier.weight(1f).fillMaxHeight())
                 SongDetails(
                     selectedSong, difficulty, onDifficultySelected, onContinue,
                     Modifier.weight(1.18f).verticalScroll(rememberScrollState())
@@ -67,7 +70,7 @@ internal fun SongPicker(
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                SongList(selectedSong, twinkleAvailable, onSongSelected, Modifier.fillMaxWidth().height(290.dp))
+                SongList(selectedSong, songs, onSongSelected, Modifier.fillMaxWidth().height(290.dp))
                 SongDetails(selectedSong, difficulty, onDifficultySelected, onContinue, Modifier.fillMaxWidth())
             }
         }
@@ -77,12 +80,10 @@ internal fun SongPicker(
 @Composable
 private fun SongList(
     selected: RhythmSong,
-    twinkleAvailable: Boolean,
+    songs: List<RhythmSong>,
     onSelect: (RhythmSong) -> Unit,
     modifier: Modifier
 ) {
-    // 음원 파일이 없는 곡은 목록에서 숨긴다.
-    val songs = RhythmSong.entries.filter { it.recordingAsset == null || twinkleAvailable }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         StaggeredHeading(
             "곡 목록", "내장곡 ${songs.size}곡",
@@ -94,15 +95,10 @@ private fun SongList(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             items(songs, key = { it.name }) { song ->
-                val enabled = song.recordingAsset == null || twinkleAvailable
                 val isSelected = song == selected
                 val scale = selectionScale(isSelected)
                 val shape = RoundedCornerShape(24.dp)
-                val ink = when {
-                    isSelected -> RhythmColors.Blue
-                    enabled -> RhythmColors.Ink
-                    else -> RhythmColors.Muted
-                }
+                val ink = if (isSelected) RhythmColors.Blue else RhythmColors.Ink
                 Box(
                     Modifier.fillMaxWidth()
                         .graphicsLayer {
@@ -112,7 +108,7 @@ private fun SongList(
                         .then(if (isSelected) Modifier.insetSurface(shape, RhythmColors.Selected) else Modifier.raisedSurface(shape))
                         .focusRing(shape)
                         .clip(shape)
-                        .selectable(isSelected, enabled = enabled, role = Role.RadioButton, onClick = { onSelect(song) })
+                        .selectable(isSelected, role = Role.RadioButton, onClick = { onSelect(song) })
                 ) {
                     Row(
                         Modifier.fillMaxWidth().padding(16.dp),
@@ -123,7 +119,7 @@ private fun SongList(
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(song.title, color = ink, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                             Text(
-                                if (enabled) "${song.bpm} BPM   ${song.durationMs / 1000}초" else "음원 필요",
+                                "${song.bpm} BPM   ${song.durationMs / 1000}초",
                                 color = RhythmColors.Muted, fontSize = 17.sp
                             )
                         }
@@ -208,8 +204,12 @@ private fun SongDetails(
 private fun AlbumArt(song: RhythmSong, modifier: Modifier) {
     val twinkle = song == RhythmSong.TWINKLE
     Canvas(modifier.clip(RoundedCornerShape(20.dp))) {
-        drawRect(if (twinkle) SongPalette.night else SongPalette.sea)
         val unit = size.minDimension
+        if (song == RhythmSong.JINGLE_BELLS) {
+            drawJingleBellsCover(unit)
+            return@Canvas
+        }
+        drawRect(if (twinkle) SongPalette.night else SongPalette.sea)
         if (twinkle) {
             val sky = listOf(.14f to .23f, .26f to .69f, .43f to .18f, .74f to .28f, .87f to .58f, .66f to .77f)
             sky.forEachIndexed { index, (x, y) ->
@@ -245,4 +245,25 @@ private fun AlbumArt(song: RhythmSong, modifier: Modifier) {
             }
         }
     }
+}
+
+private fun DrawScope.drawJingleBellsCover(unit: Float) {
+    drawRect(SongPalette.evergreen)
+    val x = center.x
+    val y = center.y
+    val bell = Path().apply {
+        moveTo(x - unit * .23f, y + unit * .16f)
+        cubicTo(x - unit * .09f, y + unit * .07f, x - unit * .22f, y - unit * .22f, x, y - unit * .22f)
+        cubicTo(x + unit * .22f, y - unit * .22f, x + unit * .09f, y + unit * .07f, x + unit * .23f, y + unit * .16f)
+        close()
+    }
+    drawRoundRect(
+        SongPalette.bell,
+        topLeft = Offset(x - unit * .045f, y - unit * .28f),
+        size = Size(unit * .09f, unit * .13f),
+        cornerRadius = CornerRadius(unit * .045f)
+    )
+    drawPath(bell, SongPalette.bell)
+    drawCircle(SongPalette.bell, unit * .065f, Offset(x, y + unit * .205f))
+    drawCircle(SongPalette.bell.copy(alpha = .3f), unit * .35f, center, style = Stroke(unit * .008f))
 }
