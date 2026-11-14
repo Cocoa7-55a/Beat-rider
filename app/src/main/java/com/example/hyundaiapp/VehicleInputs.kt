@@ -2,7 +2,10 @@ package com.example.hyundaiapp
 
 import android.car.Car
 import android.car.drivingstate.CarUxRestrictionsManager
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -101,6 +104,29 @@ class VehicleInputs(
         } catch (e: Exception) { log("차량 연결 실패: ${e.message}") }
         handler.post(poll)
         handler.postDelayed({ probe() }, 1500)
+        if (BuildConfig.DEBUG) registerDebugReceiver(context)
+    }
+    /**
+     * debug 빌드 전용. 에뮬레이터에 차량(DDS) 연결이 없어 독서등을 켜고 끌 수 없을 때 점등 신호를 흉내 낸다.
+     * 실제 구독 리스너(onLightStateUpdated)를 그대로 호출하므로 SignalEdges·주차 확인·판정 경로가 똑같이 탄다.
+     * 구독이 없는(미지원) 좌석에는 전달되지 않는다. 첫 값은 기준값이라 ON/OFF를 번갈아 두 번 보내야 눌림으로 본다.
+     *   adb shell am broadcast -a com.beatrider.app.DEBUG_LIGHT --ei seat 0 --es state OFF
+     *   adb shell am broadcast -a com.beatrider.app.DEBUG_LIGHT --ei seat 0 --es state ON
+     * seat: 0 운전석, 1 조수석, 2 뒷좌석 왼쪽, 3 뒷좌석 오른쪽. release 빌드에서는 등록되지 않는다.
+     */
+    private fun registerDebugReceiver(context: Context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(c: Context, intent: Intent) = main {
+                val seat = intent.getIntExtra("seat", -1)
+                val state = runCatching { LightState.valueOf(intent.getStringExtra("state").orEmpty().uppercase()) }.getOrNull()
+                val listener = listeners[seat]
+                if (state == null || listener == null) log("debug: 전달 안 됨 seat=$seat state=$state 구독=${listener != null}")
+                else listener.onLightStateUpdated(state)
+            }
+        }
+        // adb(shell)에서 보내려면 외부 수신이 필요하다. debug 빌드에서만 등록한다.
+        context.applicationContext.registerReceiver(receiver, IntentFilter("com.beatrider.app.DEBUG_LIGHT"), Context.RECEIVER_EXPORTED)
+        log("debug: DEBUG_LIGHT 수신 대기")
     }
     fun probe() {
         if (closed || probing) return
