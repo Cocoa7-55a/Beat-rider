@@ -532,7 +532,7 @@ class MainActivity : ComponentActivity() {
                 ) {
                     Text("타이밍 보정", fontSize = 18.sp)
                 }
-                Text("준비 4박 뒤, 노트가 판정선에 닿으면 내 자리 버튼을 누르세요.", color = RhythmColors.Muted)
+                Text("준비 4박 뒤, 노트가 판정선에 닿으면 내 자리 독서등을 켜거나 화면 버튼을 누르세요.", color = RhythmColors.Muted)
             }
         }
     }

@@ -81,9 +81,11 @@ private fun SongList(
     onSelect: (RhythmSong) -> Unit,
     modifier: Modifier
 ) {
+    // 음원 파일이 없는 곡은 목록에서 숨긴다.
+    val songs = RhythmSong.entries.filter { it.recordingAsset == null || twinkleAvailable }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         StaggeredHeading(
-            "곡 목록", "내장곡 ${RhythmSong.entries.size}곡",
+            "곡 목록", "내장곡 ${songs.size}곡",
             MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
         )
         LazyColumn(
@@ -91,7 +93,7 @@ private fun SongList(
             contentPadding = PaddingValues(9.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            items(RhythmSong.entries, key = { it.name }) { song ->
+            items(songs, key = { it.name }) { song ->
                 val enabled = song.recordingAsset == null || twinkleAvailable
                 val isSelected = song == selected
                 val scale = selectionScale(isSelected)

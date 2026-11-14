@@ -118,7 +118,7 @@ internal fun SharedTransitionScope.BrandHeading(
 ) {
     val typography = MaterialTheme.typography
     StaggeredHeading(
-        title = "리듬타",
+        title = "박자 탈래",
         subtitle = "함께 만드는 우리 가족의 리듬",
         titleStyle = if (expanded) typography.displayLarge.copy(
             fontSize = HomeLayout.ExpandedTitleSize,
