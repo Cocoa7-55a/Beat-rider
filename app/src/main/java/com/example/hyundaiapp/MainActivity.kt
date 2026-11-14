@@ -66,7 +66,20 @@ class MainActivity : ComponentActivity() {
                 else -> Unit
             }
         } else if (game.screen == "play" && inputs.experimental && inputs.verified[seat]) {
-            game.hit(seat, receivedAt, vehicle = true)
+            game.hit(seat, receivedAt, TimingInput.READING_LIGHT)
+        }
+    }
+
+    private fun onWindowMovement(seat: Int, receivedAt: Long) {
+        if (!foreground) return
+        if (game.screen == "timing") {
+            recordCalibrationInput(TimingTarget(seat, TimingInput.WINDOW), receivedAt)
+        } else if (inputs.windowExperimental && inputs.windowVerified[seat]) {
+            if (showingSeatSetup && receivedAt >= seatSetupSince) {
+                game.setSeatReady(seat, true)
+            } else if (game.screen == "play") {
+                game.hit(seat, receivedAt, TimingInput.WINDOW)
+            }
         }
     }
 
@@ -91,9 +104,16 @@ class MainActivity : ComponentActivity() {
         game.screen = "timing"
     }
 
+    private fun supportsCalibration(target: TimingTarget): Boolean = when (target.source) {
+        TimingInput.TOUCH -> true
+        TimingInput.READING_LIGHT -> inputs.supported[target.seat]
+        TimingInput.WINDOW -> inputs.windowExperimental && inputs.windowSupported[target.seat] &&
+            inputs.windowVerified[target.seat]
+    }
+
     private fun startCalibration(target: TimingTarget): Boolean {
         if (!foreground || !inputs.parked || !stickSoundReady || game.screen != "timing") return false
-        if (target.source == TimingInput.READING_LIGHT && !inputs.supported[target.seat]) return false
+        if (!supportsCalibration(target)) return false
         if (calibrationTrial != null || audioManager.requestAudioFocus(focusRequest) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
             return false
         }
@@ -110,7 +130,7 @@ class MainActivity : ComponentActivity() {
 
     private fun finishCalibration(trial: SeatTimingTrial): String {
         if (calibrationTrial !== trial || !foreground || !inputs.parked || game.screen != "timing" ||
-            (trial.target.source == TimingInput.READING_LIGHT && !inputs.supported[trial.target.seat])
+            !supportsCalibration(trial.target)
         ) {
             return "측정이 중단됐어요. 이전 값을 유지했어요."
         }
@@ -185,8 +205,13 @@ class MainActivity : ComponentActivity() {
             recordingFailed(error.toString())
             return
         }
-        val lightSeats = inputs.verified.indices.filter { inputs.experimental && inputs.verified[it] }.toSet()
-        game.start(SystemClock.elapsedRealtime(), laneIntroMs = LANE_INTRO_MS, readingLightSeats = lightSeats)
+        val vehicleInputs = buildSet {
+            for (seat in seatNames.indices) {
+                if (inputs.experimental && inputs.verified[seat]) add(TimingTarget(seat, TimingInput.READING_LIGHT))
+                if (inputs.windowExperimental && inputs.windowVerified[seat]) add(TimingTarget(seat, TimingInput.WINDOW))
+            }
+        }
+        game.start(SystemClock.elapsedRealtime(), laneIntroMs = LANE_INTRO_MS, vehicleInputs = vehicleInputs)
     }
 
     private fun releaseRecording() {
@@ -285,7 +310,7 @@ class MainActivity : ComponentActivity() {
                 game.setSeatOffset(seat, source, timingPreferences.getLong(target.preferenceKey, 0L))
             }
         }
-        inputs = VehicleInputs(this, ::onReadingLightChanged, {
+        inputs = VehicleInputs(this, ::onReadingLightChanged, ::onWindowMovement, {
             if (game.running || game.resumeRemainingMs > 0) {
                 notice = UiNotice("주차 상태가 바뀌어 연주를 멈췄어요.")
             }
@@ -375,7 +400,7 @@ class MainActivity : ComponentActivity() {
                                                     seatOffset = game::seatOffset,
                                                     onOffsetChanged = ::saveSeatOffset,
                                                     canMeasure = inputs.parked && foreground && game.screen == "timing",
-                                                    lightSupported = { inputs.supported[it] },
+                                                    inputSupported = ::supportsCalibration,
                                                     trial = calibrationTrial,
                                                     onStart = ::startCalibration,
                                                     onFinish = ::finishCalibration,
@@ -504,8 +529,11 @@ class MainActivity : ComponentActivity() {
         ) {
             StaggeredHeading(
                 "어디에 앉아 있나요?",
-                if (inputs.supported.any { it }) "독서등을 켜거나 자리 카드를 눌러 준비해 주세요."
-                else "자리 카드를 눌러 준비해 주세요.",
+                when {
+                    inputs.windowExperimental && inputs.windowVerified.any { it } -> "확인한 창문을 움직이거나 자리 카드를 눌러 준비하세요."
+                    inputs.supported.any { it } -> "독서등을 켜거나 자리 카드를 눌러 준비해 주세요."
+                    else -> "자리 카드를 눌러 준비해 주세요."
+                },
                 MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
                 subtitleStyle = MaterialTheme.typography.bodyLarge,
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -513,7 +541,9 @@ class MainActivity : ComponentActivity() {
             VehicleSeatMap(
                 readySeats = game.readySeats,
                 canReadyWithLight = { inputs.supported[it] },
+                soloReady = game.soloReady,
                 hasLightInput = { inputs.experimental && inputs.verified[it] },
+                hasWindowInput = { inputs.windowExperimental && inputs.windowVerified[it] },
                 onSeatReady = { seat, ready ->
                     if (showingSeatSetup) game.setSeatReady(seat, ready)
                 },
@@ -571,7 +601,7 @@ class MainActivity : ComponentActivity() {
                     },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp)
                 ) {
-                    Text("독서등 입력 테스트", fontSize = 18.sp)
+                    Text("차량 입력 테스트", fontSize = 18.sp)
                 }
                 TextButton(
                     onClick = { openTiming("home") },
@@ -579,7 +609,7 @@ class MainActivity : ComponentActivity() {
                 ) {
                     Text("타이밍 보정", fontSize = 18.sp)
                 }
-                Text("준비 4박 뒤, 노트가 판정선에 닿으면 내 자리 독서등을 켜거나 화면 버튼을 누르세요.", color = RhythmColors.Muted)
+                Text("준비 4박 뒤, 노트가 판정선에 닿으면 화면이나 확인한 차량 입력으로 연주하세요.", color = RhythmColors.Muted)
             }
         }
     }
@@ -601,7 +631,7 @@ class MainActivity : ComponentActivity() {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     StaggeredHeading(
-                        "독서등 입력 테스트", "좌석별 독서등 신호 확인",
+                        "차량 입력 테스트", "좌석별 독서등과 창문 움직임 확인",
                         MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
                         subtitleStyle = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.weight(1f)
@@ -613,11 +643,11 @@ class MainActivity : ComponentActivity() {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                     RhythmButton(
                         onClick = { inputs.probe() },
-                        enabled = !inputs.probing,
+                        enabled = !inputs.probing && !inputs.probingWindows,
                         modifier = Modifier.heightIn(min = 56.dp)
                     ) {
-                        if (inputs.probing) LinearSpinner(Modifier.padding(end = 8.dp))
-                        Text(if (inputs.probing) "확인 중" else "지원 범위 / 스위치 새로고침", fontSize = 17.sp)
+                        if (inputs.probing || inputs.probingWindows) LinearSpinner(Modifier.padding(end = 8.dp))
+                        Text(if (inputs.probing || inputs.probingWindows) "확인 중" else "지원 범위 새로고침", fontSize = 17.sp)
                     }
                     Row(
                         Modifier.heightIn(min = 56.dp),
@@ -643,7 +673,33 @@ class MainActivity : ComponentActivity() {
                         Text("자리 확인")
                     }
                 }
-                Text("독서등 지연은 타이밍 보정 화면에서 좌석별로 조절할 수 있어요. · ${if (game.practice) "연습 ±350" else "기본 ±220"} ms 판정")
+                HorizontalDivider()
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Switch(inputs.windowExperimental, { inputs.windowExperimental = it })
+                    Text("창문 움직임으로 연주 · 실험")
+                }
+                Text("창문이 움직이면 해당 창문이 있는 자리의 신호로 인식해요. 움직임을 확인한 자리만 선택하세요.")
+                Text("창문 버튼의 원래 동작으로 유리가 움직입니다. 끝까지 열린 상태나 닫힌 상태에서 위치가 그대로면 입력이 없어요.")
+                seatNames.forEachIndexed { seat, name ->
+                    Row(
+                        Modifier.fillMaxWidth().insetSurface(RoundedCornerShape(18.dp)).padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("${seatIcons[seat]} $name", color = RhythmColors.Blue, modifier = Modifier.weight(1f))
+                        val position = inputs.windowPositions[seat]
+                        val status = when {
+                            position != null -> "창문 위치 $position"
+                            inputs.windowSupported[seat] -> "위치 확인 중"
+                            else -> "미지원 또는 연결 안 됨"
+                        }
+                        Text(status, Modifier.weight(2f))
+                        DrawnCheckbox(inputs.windowVerified[seat], inputs.windowChanged[seat]) { checked ->
+                            inputs.windowVerified[seat] = checked
+                        }
+                        Text("창문 확인")
+                    }
+                }
+                Text("독서등과 창문 지연은 타이밍 보정 화면에서 자리별로 조절할 수 있어요.")
                 Text("아래 시간은 앱 수신 시각과 이벤트 간격입니다. 물리 스위치부터의 지연은 별도 측정이 필요해요.", fontSize = 14.sp)
                 inputs.logs.forEach { Text(it, fontSize = 14.sp, color = RhythmColors.Muted) }
             }

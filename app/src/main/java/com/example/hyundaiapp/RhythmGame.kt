@@ -66,21 +66,13 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
     /** 판정별 노트 수. [Judgment.ordinal]로 색인합니다. */
     val judgments = mutableStateListOf(0, 0, 0, 0, 0)
     var notes = listOf<BeatNote>()
-    private val touchOffsets = mutableStateListOf(0L, 0L, 0L, 0L)
-    private val readingLightOffsets = mutableStateListOf(0L, 0L, 0L, 0L)
-    private var readingLightLanes = emptySet<Int>()
+    private val seatOffsets = TimingInput.entries.associateWith { mutableStateListOf(0L, 0L, 0L, 0L) }
+    private var activeVehicleInputs = emptySet<TimingTarget>()
 
-    internal fun seatOffset(seat: Int, source: TimingInput): Long = when (source) {
-        TimingInput.TOUCH -> touchOffsets[seat]
-        TimingInput.READING_LIGHT -> readingLightOffsets[seat]
-    }
+    internal fun seatOffset(seat: Int, source: TimingInput): Long = seatOffsets.getValue(source)[seat]
 
     internal fun setSeatOffset(seat: Int, source: TimingInput, offset: Long) {
-        val value = offset.coerceIn(-MAX_TIMING_OFFSET_MS, MAX_TIMING_OFFSET_MS)
-        when (source) {
-            TimingInput.TOUCH -> touchOffsets[seat] = value
-            TimingInput.READING_LIGHT -> readingLightOffsets[seat] = value
-        }
+        seatOffsets.getValue(source)[seat] = offset.coerceIn(-MAX_TIMING_OFFSET_MS, MAX_TIMING_OFFSET_MS)
     }
 
     private fun inputOffset(lane: Int, source: TimingInput): Long =
@@ -88,8 +80,13 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
 
     private fun lastAcceptedOffset(lane: Int): Long {
         val touch = inputOffset(lane, TimingInput.TOUCH)
-        val light = if (lane in readingLightLanes) inputOffset(lane, TimingInput.READING_LIGHT) else 0L
-        return maxOf(0L, touch, light)
+        val light = if (TimingTarget(lane, TimingInput.READING_LIGHT) in activeVehicleInputs) {
+            inputOffset(lane, TimingInput.READING_LIGHT)
+        } else 0L
+        val window = if (TimingTarget(lane, TimingInput.WINDOW) in activeVehicleInputs) {
+            inputOffset(lane, TimingInput.WINDOW)
+        } else 0L
+        return maxOf(0L, touch, light, window)
     }
     var timingOffsetMs by mutableLongStateOf(0)
     private var lastFrame = 0L
@@ -99,12 +96,12 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
     var song by mutableStateOf(RhythmSong.TWINKLE)
     var difficulty by mutableStateOf(ChartDifficulty.NORMAL)
     val duration get() = song.durationMs
-    fun start(now: Long, laneIntroMs: Long = 0L, readingLightSeats: Set<Int> = emptySet()) {
+    internal fun start(now: Long, laneIntroMs: Long = 0L, vehicleInputs: Set<TimingTarget> = emptySet()) {
         val seats = readiness.indices.filter { readiness[it] }
         if (seats.isEmpty()) return
         isSolo = soloReady
         playingLanes = if (isSolo) readiness.indices.toList() else seats
-        readingLightLanes = if (isSolo) emptySet() else playingLanes.toSet().intersect(readingLightSeats)
+        activeVehicleInputs = if (isSolo) emptySet() else vehicleInputs.filter { it.seat in seats }.toSet()
         notes = song.playNotes(difficulty, playingLanes)
         pause()
         // Reserve the same lead-in even when a slower note speed exposes the first note before beat one.
@@ -172,9 +169,9 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
         }
         if (elapsed >= duration) finish()
     }
-    fun hit(lane: Int, now: Long, vehicle: Boolean = false) {
-        if (!running || elapsed < laneIntroEndsAt || lane !in playingLanes || now < segmentStart || (isSolo && vehicle)) return
-        val source = if (vehicle) TimingInput.READING_LIGHT else TimingInput.TOUCH
+    internal fun hit(lane: Int, now: Long, source: TimingInput = TimingInput.TOUCH) {
+        if (!running || elapsed < laneIntroEndsAt || lane !in playingLanes || now < segmentStart) return
+        if (source != TimingInput.TOUCH && TimingTarget(lane, source) !in activeVehicleInputs) return
         val at = elapsed + (now - lastFrame) - inputOffset(lane, source)
         val note = notes.filter { !it.judged && it.lane == lane }.minByOrNull { abs(it.time - at) }
         if (note == null || abs(note.time - at) > window) {
@@ -191,7 +188,7 @@ class RhythmGame(private val log: (String) -> Unit = {}) {
             else -> Judgment.BAD
         }
         judge(note, judgment)
-        log("HIT lane=$lane source=${if (vehicle) "light" else "touch"} errorMs=$error judgment=$judgment score=$score")
+        log("HIT lane=$lane source=${if (source == TimingInput.READING_LIGHT) "light" else source.preferenceKey} errorMs=$error judgment=$judgment score=$score")
     }
 
     private fun judge(note: BeatNote, judgment: Judgment) {

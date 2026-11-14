@@ -12,15 +12,19 @@ import android.os.SystemClock
 import androidx.compose.runtime.*
 import ai.pleos.playground.vehicle.Vehicle
 import ai.pleos.playground.vehicle.api.model.area.SeatArea
+import ai.pleos.playground.vehicle.api.model.area.WindowArea
 import ai.pleos.playground.vehicle.api.model.capability.AccessType
 import ai.pleos.playground.vehicle.constant.area.SeatValue
+import ai.pleos.playground.vehicle.constant.area.WindowValue
 import ai.pleos.playground.vehicle.constant.control.LightState
 import ai.pleos.playground.vehicle.constant.control.VehicleGear
 import ai.pleos.playground.vehicle.listener.LightStateListener
+import ai.pleos.playground.vehicle.listener.WindowPositionListener
 
 class VehicleInputs(
     context: Context,
     private val onReadingLightChanged: (Int, LightState, Long) -> Unit,
+    private val onWindowMovement: (Int, Long) -> Unit,
     private val onUnsafe: () -> Unit
 ) {
     private val handler = Handler(Looper.getMainLooper())
@@ -36,6 +40,11 @@ class VehicleInputs(
     var parked by mutableStateOf(false)
     var status by mutableStateOf("주차 상태 확인 중")
     var experimental by mutableStateOf(true)
+    var windowExperimental by mutableStateOf(false)
+    val windowSupported = mutableStateListOf(false, false, false, false)
+    val windowPositions = mutableStateListOf<Int?>(null, null, null, null)
+    val windowChanged = mutableStateListOf(false, false, false, false)
+    val windowVerified = mutableStateListOf(false, false, false, false)
     val supported = mutableStateListOf(false, false, false, false)
     val changed = mutableStateListOf(false, false, false, false)
     val verified = mutableStateListOf(false, false, false, false)
@@ -47,6 +56,13 @@ class VehicleInputs(
     private val listeners = mutableMapOf<Int, LightStateListener>()
     private val edges = List(4) { SignalEdges<LightState>() }
     private val lastEvent = LongArray(4)
+    private val windowAreas = listOf(
+        WindowValue.ROW_1_LEFT, WindowValue.ROW_1_RIGHT, WindowValue.ROW_2_LEFT, WindowValue.ROW_2_RIGHT
+    ).map { WindowArea(it) }
+    private val windowListeners = mutableMapOf<Int, WindowPositionListener>()
+    private val movements = List(windowAreas.size) { WindowMovement() }
+    var probingWindows by mutableStateOf(false)
+        private set
     var probing by mutableStateOf(false)
         private set
     private fun main(block: () -> Unit) { handler.post { if (!closed) block() } }
@@ -128,8 +144,86 @@ class VehicleInputs(
         context.applicationContext.registerReceiver(receiver, IntentFilter("com.beatrider.app.DEBUG_LIGHT"), Context.RECEIVER_EXPORTED)
         log("debug: DEBUG_LIGHT 수신 대기")
     }
+    private fun invalidateWindow(seat: Int) {
+        windowSupported[seat] = false
+        windowPositions[seat] = null
+        windowVerified[seat] = false
+        windowChanged[seat] = false
+        movements[seat].reset()
+        windowListeners.remove(seat)?.let {
+            runCatching { vehicle.getWindow().unregisterWindowPosition(windowAreas[seat], it) }
+        }
+    }
+
+    private fun subscribeToWindow(seat: Int, validPositions: IntRange) {
+        val listener = object : WindowPositionListener {
+            override fun onWindowPositionUpdated(position: Int?) {
+                val receivedAt = SystemClock.elapsedRealtime()
+                main {
+                    if (windowListeners[seat] !== this) return@main
+                    val value = position?.takeIf { it in validPositions }
+                    val previous = windowPositions[seat]
+                    windowPositions[seat] = value
+                    val startedMoving = movements[seat].accept(value, receivedAt)
+                    if (value == null) {
+                        windowChanged[seat] = false
+                        windowVerified[seat] = false
+                    } else if (startedMoving) {
+                        windowChanged[seat] = true
+                        log("창문 ${seatNames[seat]} $previous → $value · 수신 $receivedAt ms")
+                        if (parked) onWindowMovement(seat, receivedAt)
+                    }
+                }
+            }
+
+            override fun onFailed(e: Exception) = main {
+                if (windowListeners[seat] !== this) return@main
+                invalidateWindow(seat)
+                log("창문 ${seatNames[seat]} 구독 실패: ${e.message}")
+            }
+        }
+        windowListeners[seat] = listener
+        try {
+            vehicle.getWindow().registerWindowPosition(windowAreas[seat], listener)
+        } catch (e: Exception) {
+            invalidateWindow(seat)
+            log("창문 ${seatNames[seat]} 구독 실패: ${e.message}")
+        }
+    }
+
+    private fun windowProbeFailed(e: Exception) {
+        probingWindows = false
+        windowAreas.indices.forEach(::invalidateWindow)
+        log("창문 지원 확인 실패: ${e.message}")
+    }
+
+    private fun probeWindows() {
+        if (probingWindows) return
+        probingWindows = true
+        try {
+            vehicle.getWindow().checkWindowPositionCapabilities({ config, supportedAreas -> main {
+                probingWindows = false
+                val readable = config.accessType == AccessType.READ || config.accessType == AccessType.READ_WRITE
+                windowAreas.forEachIndexed { seat, area ->
+                    val bounds = supportedAreas[area]
+                    if (!readable || bounds == null || bounds.minValue >= bounds.maxValue) {
+                        invalidateWindow(seat)
+                    } else if (seat !in windowListeners) {
+                        windowSupported[seat] = true
+                        subscribeToWindow(seat, bounds.minValue..bounds.maxValue)
+                    }
+                }
+                log("창문 위치 조회 지원 ${windowSupported.count { it }}자리")
+            } }, { error -> main { windowProbeFailed(error) } })
+        } catch (e: Exception) {
+            windowProbeFailed(e)
+        }
+    }
+
     fun probe() {
-        if (closed || probing) return
+        if (closed) return
+        probeWindows()
+        if (probing) return
         probing = true
         val light = vehicle.getLight()
         try {
@@ -183,6 +277,7 @@ class VehicleInputs(
     fun close() {
         closed = true; handler.removeCallbacksAndMessages(null)
         listeners.forEach { (i, listener) -> runCatching { vehicle.getLight().unregisterReadingLightState(areas[i], listener) } }
+        windowAreas.indices.forEach(::invalidateWindow)
         runCatching { ux?.unregisterListener() }; runCatching { car?.disconnect() }; vehicle.release()
     }
 }

@@ -26,8 +26,10 @@ import androidx.compose.ui.unit.sp
 @Composable
 internal fun VehicleSeatMap(
     readySeats: List<Boolean>,
+    soloReady: Boolean,
     canReadyWithLight: (Int) -> Boolean,
     hasLightInput: (Int) -> Boolean,
+    hasWindowInput: (Int) -> Boolean,
     onSeatReady: (Int, Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -60,9 +62,15 @@ internal fun VehicleSeatMap(
                     SeatCard(
                         seat = seat,
                         ready = ready,
-                        inputHint = when {
-                            ready && hasLightInput(seat) -> "연주 · 독서등 + 터치"
-                            ready -> "연주 · 터치"
+                        inputHint = if (ready) {
+                            val sources = buildList {
+                                add("터치")
+                                if (!soloReady && hasLightInput(seat)) add("독서등")
+                                if (!soloReady && hasWindowInput(seat)) add("창문")
+                            }
+                            "연주 · ${sources.joinToString(" + ")}"
+                        } else when {
+                            hasWindowInput(seat) -> "준비 · 창문 또는 터치"
                             canReadyWithLight(seat) -> "준비 · 독서등 또는 터치"
                             else -> "준비 · 카드 터치"
                         },

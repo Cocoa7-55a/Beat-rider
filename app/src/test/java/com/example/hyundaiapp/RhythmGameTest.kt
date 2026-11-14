@@ -80,11 +80,12 @@ class RhythmGameTest {
     }
 
     @Test fun allSeatsShareScoreAndDuplicateCannotScoreTwice() {
-        val game = readyGame(); game.start(1000)
+        val game = readyGame()
+        game.start(1000, vehicleInputs = (0..3).map { TimingTarget(it, TimingInput.READING_LIGHT) }.toSet())
         game.notes.forEachIndexed { index, note ->
             val time = 1000L + note.time
             game.tickAtSongTime(note.time, now = time)
-            game.hit(note.lane, time, vehicle = index % 2 == 0)
+            game.hit(note.lane, time, if (index % 2 == 0) TimingInput.READING_LIGHT else TimingInput.TOUCH)
             game.hit(note.lane, time)
         }
         game.tickAtSongTime(game.duration, now = 1000L + game.duration)
@@ -104,7 +105,7 @@ class RhythmGameTest {
         game.tick(10250) { fail("Resume preparation must not play a beat") }
         assertEquals(3000L, game.resumeRemainingMs)
         game.tick(13249) { fail("Countdown must not play a beat") }
-        game.hit(0, 13249, vehicle = true)
+        game.hit(0, 13249, source = TimingInput.READING_LIGHT)
         assertEquals(0, game.hits)
         assertEquals(4100L, game.elapsed)
         assertFalse(game.running)
@@ -114,7 +115,7 @@ class RhythmGameTest {
         assertTrue(game.running)
         assertEquals(0L, game.resumeRemainingMs)
         assertEquals(4100L, game.elapsed)
-        game.hit(0, 13249, vehicle = true)
+        game.hit(0, 13249, source = TimingInput.READING_LIGHT)
         assertEquals(0, game.hits)
         game.hit(0, 13350)
         assertEquals(1, game.hits)
@@ -133,15 +134,17 @@ class RhythmGameTest {
         assertFalse(game.running)
     }
     @Test fun callbackReceiptTimeIsUsedEvenAfterNextFrame() {
-        val game = readyGame(); game.start(0); game.tickAtSongTime(4300)
-        game.hit(0, 4200, true)
+        val game = readyGame()
+        game.start(0, vehicleInputs = setOf(TimingTarget(0, TimingInput.READING_LIGHT)))
+        game.tickAtSongTime(4300)
+        game.hit(0, 4200, TimingInput.READING_LIGHT)
         assertEquals(100, game.score)
     }
     @Test fun positiveLightOffsetDoesNotExpireNoteBeforeDelayedInput() {
         val game = readyGame()
         game.setSeatOffset(0, TimingInput.READING_LIGHT, 300)
-        game.start(0, readingLightSeats = setOf(0))
-        game.tickAtSongTime(4500); game.hit(0, 4500, true)
+        game.start(0, vehicleInputs = setOf(TimingTarget(0, TimingInput.READING_LIGHT)))
+        game.tickAtSongTime(4500); game.hit(0, 4500, TimingInput.READING_LIGHT)
         assertEquals(100, game.score)
     }
     @Test fun practiceHasWiderWindowAndMissResetsSharedCombo() {
@@ -174,7 +177,7 @@ class RhythmGameTest {
 
                 for (note in game.notes) {
                     game.tickAtSongTime(note.time)
-                    game.hit(note.lane, note.time, vehicle = true)
+                    game.hit(note.lane, note.time, source = TimingInput.READING_LIGHT)
                     assertFalse(note.judged)
                     game.hit(note.lane, note.time)
                 }
@@ -269,13 +272,13 @@ class RhythmGameTest {
 
     @Test fun gradesShareComboScoreAndLifeAcrossTouchAndVehicle() {
         val game = readyGame()
-        game.start(0)
+        game.start(0, vehicleInputs = (0..3).map { TimingTarget(it, TimingInput.READING_LIGHT) }.toSet())
         val errors = listOf(100L, 140L, 180L, 220L)
         val expected = listOf(Judgment.PERFECT, Judgment.GREAT, Judgment.GOOD, Judgment.BAD)
         game.notes.take(errors.size).forEachIndexed { index, note ->
             val time = note.time + errors[index]
             game.tickAtSongTime(time)
-            game.hit(note.lane, time, vehicle = index % 2 == 0)
+            game.hit(note.lane, time, if (index % 2 == 0) TimingInput.READING_LIGHT else TimingInput.TOUCH)
             assertEquals(expected[index].name, game.feedback)
             assertEquals(listOf(1, 2, 0, 0)[index], game.combo)
             assertEquals(listOf(1000, 1000, 1000, 950)[index], game.life)
@@ -351,6 +354,40 @@ class RhythmGameTest {
         assertNull(outside.record(firstBeat + 501))
     }
 
+    @Test fun windowMovementFiltersInitialValuesDuplicatesAndContinuousTravel() {
+        val movement = WindowMovement()
+        assertFalse(movement.accept(0, 0))
+        assertFalse(movement.accept(0, 100))
+        assertTrue(movement.accept(2, 200))
+        assertFalse(movement.accept(7, 260))
+        assertFalse(movement.accept(9, 450))
+        assertFalse(movement.accept(9, 750))
+        assertTrue(movement.accept(6, 900))
+        assertFalse(movement.accept(null, 1000))
+        assertFalse(movement.accept(4, 1200))
+        assertTrue(movement.accept(3, 1300))
+    }
+
+    @Test fun windowUsesItsOwnCalibrationAndOnlyEntersVerifiedLanes() {
+        val game = readyGame(listOf(0, 1))
+        val window = TimingTarget(1, TimingInput.WINDOW)
+        game.setSeatOffset(1, TimingInput.WINDOW, 300)
+        game.setSeatOffset(1, TimingInput.READING_LIGHT, 20)
+        game.start(0, vehicleInputs = setOf(window))
+        val first = game.notes.first { it.lane == 1 }
+        game.tickAtSongTime(first.time + 300)
+        game.hit(1, first.time + 300, TimingInput.READING_LIGHT)
+        assertFalse(first.judged)
+        game.hit(1, first.time + 300, TimingInput.WINDOW)
+        assertTrue(first.judged)
+        assertEquals(Judgment.PERFECT, game.laneJudge[1]?.judgment)
+
+        game.start(0)
+        game.tickAtSongTime(first.time)
+        game.hit(1, first.time, TimingInput.WINDOW)
+        assertEquals(0, game.score)
+    }
+
     @Test fun seatCalibrationOnlyUsesTheSelectedSeatAndInput() {
         val start = 10000L
         val target = TimingTarget(1, TimingInput.READING_LIGHT)
@@ -386,14 +423,14 @@ class RhythmGameTest {
         game.setSeatOffset(0, TimingInput.TOUCH, 280)
         game.setSeatOffset(1, TimingInput.READING_LIGHT, 300)
         game.setSeatOffset(3, TimingInput.TOUCH, 500)
-        game.start(0, readingLightSeats = setOf(1))
+        game.start(0, vehicleInputs = setOf(TimingTarget(1, TimingInput.READING_LIGHT)))
         val first = game.notes[0]
         val second = game.notes[1]
         game.tickAtSongTime(first.time + 280)
         game.hit(first.lane, first.time + 280)
         assertEquals(Judgment.PERFECT, game.laneJudge[0]?.judgment)
         game.tickAtSongTime(second.time + 300)
-        game.hit(second.lane, second.time + 300, vehicle = true)
+        game.hit(second.lane, second.time + 300, source = TimingInput.READING_LIGHT)
         assertEquals(Judgment.PERFECT, game.laneJudge[1]?.judgment)
 
         val third = game.notes[2]
@@ -415,7 +452,7 @@ class RhythmGameTest {
         game.song = RhythmSong.TWINKLE
         game.timingOffsetMs = 150
         game.setSeatOffset(1, TimingInput.READING_LIGHT, 200)
-        game.start(0, readingLightSeats = setOf(1))
+        game.start(0, vehicleInputs = setOf(TimingTarget(1, TimingInput.READING_LIGHT)))
 
         // Recorded song audio clock is shifted by timingOffsetMs (countInMs = 2400):
         // 2400 + 1950 - 150 = 4200ms
@@ -434,7 +471,7 @@ class RhythmGameTest {
         assertEquals(4800L, second.time)
         game.tick(7100, recordingPositionMs = 2550) {} // elapsed = 2400 + 2550 - 150 = 4800
         assertEquals(4800L, game.elapsed)
-        game.hit(second.lane, 7300, vehicle = true)
+        game.hit(second.lane, 7300, source = TimingInput.READING_LIGHT)
         assertEquals(200, game.score)
         assertEquals(2, game.hits)
     }

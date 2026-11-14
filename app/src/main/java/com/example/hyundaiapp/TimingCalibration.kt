@@ -34,7 +34,8 @@ private const val NoteExitMs = 250L
 
 internal enum class TimingInput(val label: String, val preferenceKey: String) {
     TOUCH("화면 터치", "touch"),
-    READING_LIGHT("독서등", "reading_light")
+    READING_LIGHT("독서등", "reading_light"),
+    WINDOW("창문 움직임", "window")
 }
 
 internal data class TimingTarget(val seat: Int, val source: TimingInput) {
@@ -94,7 +95,7 @@ internal fun TimingCalibrationPage(
     seatOffset: (Int, TimingInput) -> Long,
     onOffsetChanged: (TimingTarget, Long) -> Unit,
     canMeasure: Boolean,
-    lightSupported: (Int) -> Boolean,
+    inputSupported: (TimingTarget) -> Boolean,
     trial: SeatTimingTrial?,
     onStart: (TimingTarget) -> Boolean,
     onFinish: (SeatTimingTrial) -> String,
@@ -110,7 +111,7 @@ internal fun TimingCalibrationPage(
     var elapsed by remember { mutableLongStateOf(0L) }
     var result by remember(target) { mutableStateOf<String?>(null) }
     val measuring = trial != null
-    val supported = target.source == TimingInput.TOUCH || lightSupported(target.seat)
+    val supported = inputSupported(target)
 
     LaunchedEffect(trial, canMeasure, supported) {
         val active = trial ?: return@LaunchedEffect
@@ -203,8 +204,11 @@ internal fun TimingCalibrationPage(
                         Column(Modifier.padding(28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             Text("자동 보정", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                             Text(
-                                if (target.source == TimingInput.TOUCH) "소리에 맞춰 화면 버튼을 한 번씩 눌러 주세요."
-                                else "소리에 맞춰 ${seatNames[target.seat]} 독서등을 한 번씩 켜거나 꺼 주세요."
+                                when (target.source) {
+                                    TimingInput.TOUCH -> "소리에 맞춰 화면 버튼을 한 번씩 눌러 주세요."
+                                    TimingInput.READING_LIGHT -> "소리에 맞춰 ${seatNames[target.seat]} 독서등을 한 번씩 켜거나 꺼 주세요."
+                                    TimingInput.WINDOW -> "소리에 맞춰 ${seatNames[target.seat]} 쪽 창문을 짧게 움직여 주세요."
+                                }
                             )
                             CalibrationLane(trial?.timing, elapsed, if (wideLayout) 250.dp else 200.dp)
                             if (trial != null) {
@@ -228,7 +232,7 @@ internal fun TimingCalibrationPage(
                             } else {
                                 result?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
                                 if (!canMeasure) Text("주차가 확인되면 측정을 시작할 수 있어요.")
-                                if (!supported) Text("이 자리의 독서등을 읽을 수 없어요. 화면 터치를 선택해 주세요.")
+                                if (!supported) Text("이 자리의 ${target.source.label} 신호를 읽을 수 없어요. 화면 터치를 선택해 주세요.")
                                 RhythmButton(
                                     onClick = {
                                         elapsed = 0L
