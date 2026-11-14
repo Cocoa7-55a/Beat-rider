@@ -75,6 +75,11 @@ Pleos Connect 차량 화면에서 1~4명이 자리별 레인을 나눠 연주하
 * 한 자리씩 켜고 끄며 신호 수신을 확인하고, 지원 및 변화가 관찰된 좌석만 `자리 확인`을 켤 수 있습니다.
 * **협동 연주**에서 독서등 실험 모드를 켜면 확인된 좌석의 `ON ↔ OFF` 상태 변화가 터치와 동일한 판정 경로로 들어갑니다. (초기값 및 동일값 재전송은 `SignalEdges`에서 필터링)
 * **차량 입력 지연 보정**: 하드웨어/CAN 버스 통신 딜레이를 보정하기 위해 독서등 전용 독립 오프셋 슬라이더(-300~+300ms, 기본 0ms)를 제공합니다.
+* **에뮬레이터 시험(debug 빌드 전용)**: 가상 콘솔이 `emulator_inactive`라 독서등을 켜고 끌 수 없을 때, 실제 구독 리스너를 그대로 호출하는 신호를 흘려 넣을 수 있습니다. `SignalEdges`·주차 확인·판정 경로가 똑같이 동작합니다. 첫 값은 기준값이라 `OFF`→`ON`처럼 두 번 보내야 눌림으로 봅니다. 구독이 없는 좌석에는 전달되지 않고, release 빌드에는 등록되지 않습니다. 차량 SDK가 값을 주는 경로는 이 방법으로 검증되지 않습니다.
+  ```powershell
+  adb shell am broadcast -a com.beatrider.app.DEBUG_LIGHT --ei seat 0 --es state OFF
+  adb shell am broadcast -a com.beatrider.app.DEBUG_LIGHT --ei seat 0 --es state ON   # seat: 0 운전석, 1 조수석, 2 뒷좌석 왼쪽, 3 뒷좌석 오른쪽
+  ```
 * 앱은 차량 상태를 강제 변경하는 setter를 호출하지 않으며, 원래 버튼 기능을 막거나 복원하지 않는 읽기 전용 구조입니다.
 
 ---
