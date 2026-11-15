@@ -10,7 +10,7 @@ Pleos Connect 차량 화면에서 1~4명이 자리별 레인을 나눠 연주하
 | 안전 | 기어 P와 주행 제한 해제가 확인될 때만 연주. 차량 상태를 바꾸는 호출 없음(읽기 전용) |
 | 검증 | 에뮬레이터 터치 연주 · [검증 기록과 미확인 항목](docs/verification.md) · [프로젝트 현황](docs/project-status.md) |
 | 실행 | [빌드와 실행](#빌드와-실행) |
-| APK | 저장소의 Releases 최신 릴리스(디버그 서명) |
+| APK | [v1.1.0 Pleos 에뮬레이터용 APK](https://github.com/Cocoa7-55a/Beat-rider/releases/tag/v1.1.0) · 작은 별과 징글벨 포함 · 디버그 서명 |
 
 ---
 
@@ -91,10 +91,10 @@ Pleos Connect 차량 화면에서 1~4명이 자리별 레인을 나눠 연주하
 
 ## 빌드와 실행
 
-Android Studio에서 프로젝트를 열고 Android SDK 37, JDK 및 Pleos 에뮬레이터를 설정합니다.  
+Android Studio에서 프로젝트를 열고 빌드용 Android SDK 37과 Gradle 실행용 JDK 17 이상을 설정합니다. 실행에는 [Pleos Connect v2.1.0 에뮬레이터(API 34)](https://document.pleos.ai/docs/connect/guide/getting-started/application-development/setup-connect-sdk-emulator)를 사용합니다.
 의존성은 프로젝트에 설정된 Pleos Maven 저장소(`nexus-playground.pleos.ai`)에서 다운로드됩니다.
 
-녹음 음원은 아래 파일을 `app/src/main/assets/`에 지정된 이름으로 넣은 뒤 빌드하면 곡 목록에 표시됩니다. 원본 MP3는 로컬에 저장합니다.
+소스에서 빌드할 때는 아래 음원 중 한 곡 이상을 다운로드해 `app/src/main/assets/`에 지정된 이름으로 넣으세요. 음원을 넣은 곡만 목록에 표시되며, 두 곡 모두 없으면 연주를 시작할 수 없습니다. 릴리스 APK에는 두 곡이 들어 있습니다. 원본 MP3는 [Pixabay 이용약관](https://pixabay.com/service/terms/)에 따라 출처에서 받습니다.
 
 | 곡 | 프로젝트에 넣을 파일 이름 |
 | --- | --- |
