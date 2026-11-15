@@ -25,7 +25,7 @@ import kotlin.math.roundToLong
 
 internal const val MAX_TIMING_OFFSET_MS = 500L
 private const val CalibrationBeats = 8
-internal const val MIN_TIMING_SAMPLES = 5
+private const val MIN_TIMING_SAMPLES = 5
 private const val FirstBeatMs = 1500L
 private const val BeatIntervalMs = 1100L
 private const val SampleWindowMs = MAX_TIMING_OFFSET_MS
@@ -42,28 +42,32 @@ internal data class TimingTarget(val seat: Int, val source: TimingInput) {
     val preferenceKey get() = "${source.preferenceKey}_seat_${seat}_ms"
 }
 
-internal class SeatTimingTrial(val target: TimingTarget, startedAt: Long, private val audioOffsetMs: Long) {
-    val timing = TimingTrial(startedAt)
-    var sampleCount by mutableIntStateOf(0)
-        private set
-    var lastError by mutableStateOf<Long?>(null)
-        private set
+internal class GroupTimingTrial(
+    targets: List<TimingTarget>,
+    startedAt: Long,
+    private val audioOffsetMs: Long
+) {
+    private val trials = targets.associateWith { TimingTrial(startedAt) }
+    val clock = trials.values.first()
 
-    fun record(input: TimingTarget, at: Long) {
-        if (input != target) return
-        val error = timing.record(at) ?: return
-        sampleCount = timing.sampleCount
-        lastError = error
+    fun sampleCount(target: TimingTarget): Int? = trials[target]?.sampleCount
+
+    fun record(target: TimingTarget, at: Long) {
+        trials[target]?.record(at)
     }
 
     // Gameplay audio already leads by the shared offset, so only the remaining delay needs correction.
-    fun offset(): Long? = timing.offset()?.let { measured ->
-        (measured - audioOffsetMs).coerceIn(-MAX_TIMING_OFFSET_MS, MAX_TIMING_OFFSET_MS)
+    fun offsets(stillSupported: (TimingTarget) -> Boolean): Map<TimingTarget, Long> = buildMap {
+        for ((target, trial) in trials) {
+            if (!stillSupported(target)) continue
+            val measured = trial.offset() ?: continue
+            put(target, (measured - audioOffsetMs).coerceIn(-MAX_TIMING_OFFSET_MS, MAX_TIMING_OFFSET_MS))
+        }
     }
 }
 
 internal class TimingTrial(private val startedAt: Long) {
-    private val samples = mutableMapOf<Int, Long>()
+    private val samples = mutableStateMapOf<Int, Long>()
     val sampleCount get() = samples.size
     val durationMs = FirstBeatMs + (CalibrationBeats - 1) * BeatIntervalMs + SampleWindowMs
 
@@ -96,9 +100,9 @@ internal fun TimingCalibrationPage(
     onOffsetChanged: (TimingTarget, Long) -> Unit,
     canMeasure: Boolean,
     inputSupported: (TimingTarget) -> Boolean,
-    trial: SeatTimingTrial?,
-    onStart: (TimingTarget) -> Boolean,
-    onFinish: (SeatTimingTrial) -> String,
+    trial: GroupTimingTrial?,
+    onStart: () -> Boolean,
+    onFinish: (GroupTimingTrial) -> Map<TimingTarget, Long>,
     onCancel: () -> Unit,
     onTouch: (Int, Long) -> Unit,
     playCue: () -> Unit,
@@ -106,21 +110,21 @@ internal fun TimingCalibrationPage(
 ) {
     var selectedSeat by remember { mutableIntStateOf(DRIVER_SEAT) }
     var selectedInput by remember { mutableStateOf(TimingInput.TOUCH) }
-    val target = trial?.target ?: TimingTarget(selectedSeat, selectedInput)
+    val target = TimingTarget(selectedSeat, selectedInput)
     val offsetMs = seatOffset(target.seat, target.source)
     var elapsed by remember { mutableLongStateOf(0L) }
-    var result by remember(target) { mutableStateOf<String?>(null) }
+    var result by remember { mutableStateOf<String?>(null) }
+    var updatedTargets by remember { mutableStateOf<Set<TimingTarget>?>(null) }
     val measuring = trial != null
-    val supported = inputSupported(target)
 
-    LaunchedEffect(trial, canMeasure, supported) {
+    LaunchedEffect(trial, canMeasure) {
         val active = trial ?: return@LaunchedEffect
-        if (!canMeasure || !supported) {
+        if (!canMeasure) {
             result = "측정이 중단됐어요. 이전 값을 유지했어요."
             onCancel()
             return@LaunchedEffect
         }
-        val current = active.timing
+        val current = active.clock
         var nextCue = 0
         while (elapsed < current.durationMs) {
             elapsed = current.elapsedAt(SystemClock.elapsedRealtime())
@@ -130,7 +134,10 @@ internal fun TimingCalibrationPage(
             }
             delay(16)
         }
-        result = onFinish(active)
+        val updated = onFinish(active)
+        updatedTargets = updated.keys
+        result = if (updated.isEmpty()) "유효 입력이 부족해 기존 값을 유지했어요."
+        else "${updated.keys.map { it.seat }.distinct().size}자리 보정 완료"
     }
     DisposableEffect(Unit) { onDispose { onCancel() } }
 
@@ -144,38 +151,35 @@ internal fun TimingCalibrationPage(
                 onBack()
             }, modifier = Modifier.heightIn(min = 56.dp)) { Text("돌아가기", fontSize = 17.sp) }
             StaggeredHeading(
-                "타이밍 보정", "좌석과 입력 방식을 골라 판정 타이밍을 맞춰요.",
+                "타이밍 보정", "네 자리가 같은 8박에 맞춰 각자 입력해요.",
                 MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold)
             )
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                seatNames.forEachIndexed { seat, name ->
-                    FilterChip(
-                        selected = target.seat == seat,
-                        onClick = { selectedSeat = seat },
-                        label = { Text("${seatIcons[seat]} $name") },
-                        enabled = !measuring
-                    )
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TimingInput.entries.forEach { source ->
-                    FilterChip(
-                        selected = target.source == source,
-                        onClick = { selectedInput = source },
-                        label = { Text(source.label) },
-                        enabled = !measuring
-                    )
-                }
-            }
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val wideLayout = maxWidth >= 720.dp
                 val manual: @Composable (Modifier) -> Unit = { modifier ->
                     Box(modifier.raisedSurface()) {
                         Column(Modifier.padding(28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             Text("수동 보정", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                seatNames.forEachIndexed { seat, name ->
+                                    FilterChip(
+                                        selected = target.seat == seat,
+                                        onClick = { selectedSeat = seat },
+                                        label = { Text("${seatIcons[seat]} $name") },
+                                        enabled = !measuring
+                                    )
+                                }
+                            }
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                TimingInput.entries.forEach { source ->
+                                    FilterChip(
+                                        selected = target.source == source,
+                                        onClick = { selectedInput = source },
+                                        label = { Text(source.label) },
+                                        enabled = !measuring
+                                    )
+                                }
+                            }
                             RollingNumber(
                                 signedMs(offsetMs), color = RhythmColors.Ink,
                                 style = androidx.compose.ui.text.TextStyle(fontSize = 48.sp, lineHeight = 54.sp, fontWeight = FontWeight.Bold)
@@ -203,42 +207,24 @@ internal fun TimingCalibrationPage(
                     Box(modifier.raisedSurface()) {
                         Column(Modifier.padding(28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             Text("자동 보정", fontSize = 26.sp, fontWeight = FontWeight.Bold)
-                            Text(
-                                when (target.source) {
-                                    TimingInput.TOUCH -> "소리에 맞춰 화면 버튼을 한 번씩 눌러 주세요."
-                                    TimingInput.READING_LIGHT -> "소리에 맞춰 ${seatNames[target.seat]} 독서등을 한 번씩 켜거나 꺼 주세요."
-                                    TimingInput.WINDOW -> "소리에 맞춰 ${seatNames[target.seat]} 쪽 창문을 짧게 움직여 주세요."
-                                }
-                            )
-                            CalibrationLane(trial?.timing, elapsed, if (wideLayout) 250.dp else 200.dp)
-                            if (trial != null) {
-                                Text("유효한 입력 ${trial.sampleCount} / $CalibrationBeats")
-                                Text(
-                                    trial.lastError?.let { "입력 오차 ${signedMs(it)}" } ?: "첫 박자를 기다려 주세요.",
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                if (target.source == TimingInput.TOUCH) {
-                                    RhythmButton(
-                                        onClick = {},
-                                        onPress = { at -> onTouch(target.seat, at) },
-                                        enabled = canMeasure,
-                                        modifier = Modifier.fillMaxWidth().heightIn(min = 68.dp)
-                                    ) { Text("박자에 맞춰 누르기", fontSize = 20.sp) }
-                                }
+                            Text("소리에 맞춰 자기 좌석 버튼을 누르거나 지원되는 독서등·창문을 움직여 주세요. 입력 방식마다 ${MIN_TIMING_SAMPLES}회 이상 필요해요.")
+                            CalibrationLane(trial?.clock, elapsed, if (wideLayout) 165.dp else 125.dp)
+                            CalibrationSeats(trial, inputSupported, seatOffset, updatedTargets, canMeasure, onTouch)
+                            result?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+                            if (measuring) {
                                 TextButton(onClick = {
                                     onCancel()
                                     result = "측정을 취소했어요. 이전 값을 유지했어요."
                                 }) { Text("측정 취소") }
                             } else {
-                                result?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
                                 if (!canMeasure) Text("주차가 확인되면 측정을 시작할 수 있어요.")
-                                if (!supported) Text("이 자리의 ${target.source.label} 신호를 읽을 수 없어요. 화면 터치를 선택해 주세요.")
                                 RhythmButton(
                                     onClick = {
                                         elapsed = 0L
-                                        result = if (onStart(target)) null else "측정을 시작할 수 없어요. 잠시 뒤 다시 시도하세요."
+                                        updatedTargets = null
+                                        result = if (onStart()) null else "측정을 시작할 수 없어요. 잠시 뒤 다시 시도하세요."
                                     },
-                                    enabled = canMeasure && supported,
+                                    enabled = canMeasure,
                                     modifier = Modifier.fillMaxWidth().heightIn(min = 68.dp)
                                 ) { Text("자동 보정 시작", fontSize = 20.sp) }
                             }
@@ -252,8 +238,49 @@ internal fun TimingCalibrationPage(
                     }
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        manual(Modifier.fillMaxWidth())
                         automatic(Modifier.fillMaxWidth())
+                        manual(Modifier.fillMaxWidth())
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CalibrationSeats(
+    trial: GroupTimingTrial?,
+    inputSupported: (TimingTarget) -> Boolean,
+    seatOffset: (Int, TimingInput) -> Long,
+    updatedTargets: Set<TimingTarget>?,
+    canMeasure: Boolean,
+    onTouch: (Int, Long) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        for (row in seatNames.indices.chunked(2)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (seat in row) {
+                    Column(
+                        Modifier.weight(1f).insetSurface(ButtonShape).padding(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        RhythmButton(
+                            onClick = {},
+                            onPress = { at -> onTouch(seat, at) },
+                            enabled = trial != null && canMeasure,
+                            color = seatColors[seat],
+                            textColor = RhythmColors.Ink,
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                            contentPadding = PaddingValues(horizontal = 4.dp)
+                        ) { Text("${seatIcons[seat]} ${seatNames[seat]}") }
+                        for (source in TimingInput.entries) {
+                            val target = TimingTarget(seat, source)
+                            if (!inputSupported(target)) continue
+                            val count = trial?.sampleCount(target)
+                            val detail = if (count != null) "$count/$CalibrationBeats" else signedMs(seatOffset(seat, source))
+                            val status = if (updatedTargets == null) "" else if (target in updatedTargets) " · 적용" else " · 유지"
+                            Text("${source.label} $detail$status", style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                 }
             }

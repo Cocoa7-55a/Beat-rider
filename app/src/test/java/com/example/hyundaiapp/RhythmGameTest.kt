@@ -388,34 +388,34 @@ class RhythmGameTest {
         assertEquals(0, game.score)
     }
 
-    @Test fun seatCalibrationOnlyUsesTheSelectedSeatAndInput() {
+    @Test fun groupCalibrationSamplesFourSeatsOnTheSameBeatsAndKeepsOtherOffsets() {
         val start = 10000L
-        val target = TimingTarget(1, TimingInput.READING_LIGHT)
-        val game = readyGame()
-        game.setSeatOffset(1, TimingInput.READING_LIGHT, 210)
-        game.setSeatOffset(1, TimingInput.TOUCH, 25)
-        game.setSeatOffset(2, TimingInput.READING_LIGHT, 55)
-        val trial = SeatTimingTrial(target, start, audioOffsetMs = 30)
+        val touch = (0..3).map { TimingTarget(it, TimingInput.TOUCH) }
+        val light = TimingTarget(1, TimingInput.READING_LIGHT)
+        val window = TimingTarget(2, TimingInput.WINDOW)
+        val unsupported = TimingTarget(3, TimingInput.WINDOW)
+        val group = GroupTimingTrial(touch + listOf(light, window), start, audioOffsetMs = 30)
 
-        repeat(8) { index ->
-            val at = start + trial.timing.beatTime(index)
-            trial.record(TimingTarget(2, TimingInput.READING_LIGHT), at)
-            trial.record(TimingTarget(1, TimingInput.TOUCH), at)
+        repeat(5) { index ->
+            val beat = start + group.clock.beatTime(index)
+            touch.forEachIndexed { seat, target ->
+                group.record(target, beat + seat * 50L)
+                group.record(target, beat + seat * 50L + 4)
+            }
+            group.record(light, beat + 50)
+            group.record(unsupported, beat)
+            if (index < 4) group.record(window, beat + 100)
         }
-        assertEquals(0, trial.sampleCount)
-        assertNull(trial.offset())
-        repeat(4) { index ->
-            trial.record(target, start + trial.timing.beatTime(index) + 150)
-        }
-        assertNull(trial.offset())
-        assertEquals(210L, game.seatOffset(1, TimingInput.READING_LIGHT))
 
-        trial.record(target, start + trial.timing.beatTime(4) + 150)
-        val offset = requireNotNull(trial.offset())
-        game.setSeatOffset(target.seat, target.source, offset)
-        assertEquals(120L, game.seatOffset(1, TimingInput.READING_LIGHT))
-        assertEquals(25L, game.seatOffset(1, TimingInput.TOUCH))
-        assertEquals(55L, game.seatOffset(2, TimingInput.READING_LIGHT))
+        val expected = touch.mapIndexed { seat, target -> target to seat * 50L - 30 }.toMap()
+        assertEquals(expected + (light to 20L), group.offsets { true })
+        assertEquals(expected, group.offsets { it.source == TimingInput.TOUCH })
+        assertEquals(listOf(5, 5, 5, 5), touch.map(group::sampleCount))
+        assertEquals(4, group.sampleCount(window))
+        assertNull(group.sampleCount(unsupported))
+
+        val emptyRun = GroupTimingTrial(touch, start, audioOffsetMs = 30)
+        assertTrue(emptyRun.offsets { true }.isEmpty())
     }
 
     @Test fun gameplayUsesEachSeatsOwnOffsetAndTheDriverOffsetForAllSoloLanes() {
